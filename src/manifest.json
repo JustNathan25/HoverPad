@@ -1,0 +1,17 @@
+{
+  "name": "HoverPad — Collaborative Floating Notes",
+  "short_name": "HoverPad",
+  "description": "Real-time collaborative notes and snippet manager with Always-on-Top floating note windows.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ececf0",
+  "theme_color": "#0071e3",
+  "icons": [
+    {
+      "src": "./icon.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

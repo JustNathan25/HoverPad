@@ -145,7 +145,11 @@ function renderFloatSnippets() {
     }
 
     row.addEventListener('click', async () => {
-      await window.hoverpadDesktop?.copyText(lineText);
+      if (window.hoverpadDesktop) {
+        await window.hoverpadDesktop.copyText(lineText);
+      } else {
+        await navigator.clipboard.writeText(lineText);
+      }
       showFloatToast(`Copied Line ${numStr}`);
     });
 
@@ -158,11 +162,17 @@ function emitEditToMain() {
   fel.statusText.textContent = 'Syncing...';
   if (floatState.editTimer) clearTimeout(floatState.editTimer);
   floatState.editTimer = setTimeout(async () => {
-    await window.hoverpadDesktop?.sendFloatingNoteEdit({
+    const editPayload = {
       id: floatState.noteId,
       title: fel.titleInput.value,
       content: fel.textarea.value
-    });
+    };
+    if (window.hoverpadDesktop) {
+      await window.hoverpadDesktop.sendFloatingNoteEdit(editPayload);
+    } else {
+      window.parent?.opener?.postMessage({ type: 'note-pad:edit', payload: editPayload }, '*');
+      window.opener?.postMessage({ type: 'note-pad:edit', payload: editPayload }, '*');
+    }
     fel.statusText.textContent = 'Live synced with workspace';
   }, 220);
 }
@@ -175,42 +185,65 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+function applyIncomingPayload(payload) {
+  if (!payload) return;
+  floatState.noteId = payload.id;
+  floatState.projectName = payload.projectName || 'Workspace';
+  floatState.maskSecrets = payload.maskSecrets !== false;
+  if (payload.theme) applyFloatTheme(payload.theme);
+  fel.projectName.textContent = floatState.projectName;
+
+  if (document.activeElement !== fel.titleInput) {
+    floatState.title = payload.title || '';
+    fel.titleInput.value = floatState.title;
+  }
+  if (document.activeElement !== fel.textarea) {
+    floatState.content = payload.content || '';
+    fel.textarea.value = floatState.content;
+    renderFloatSnippets();
+  }
+}
+
 (function initFloatingNote() {
   if (window.hoverpadDesktop) {
-    window.hoverpadDesktop.onFloatingNoteData((payload) => {
-      if (!payload) return;
-      floatState.noteId = payload.id;
-      floatState.projectName = payload.projectName || 'Workspace';
-      floatState.maskSecrets = payload.maskSecrets !== false;
-      if (payload.theme) applyFloatTheme(payload.theme);
-      fel.projectName.textContent = floatState.projectName;
-
-      if (document.activeElement !== fel.titleInput) {
-        floatState.title = payload.title || '';
-        fel.titleInput.value = floatState.title;
-      }
-      if (document.activeElement !== fel.textarea) {
-        floatState.content = payload.content || '';
-        fel.textarea.value = floatState.content;
-        renderFloatSnippets();
-      }
-    });
-
+    window.hoverpadDesktop.onFloatingNoteData(applyIncomingPayload);
     window.hoverpadDesktop.onFloatingNoteTheme((theme) => {
       applyFloatTheme(theme);
     });
   }
 
+  // Also support Browser Document Picture-in-Picture / Web postMessage bridge
+  window.addEventListener('message', (e) => {
+    if (e.data?.type === 'note-pad:data') {
+      applyIncomingPayload(e.data.payload);
+    } else if (e.data?.type === 'note-pad:theme') {
+      applyFloatTheme(e.data.theme);
+    }
+  });
+
   fel.opacitySlider.addEventListener('input', (e) => {
-    window.hoverpadDesktop?.setFloatingNoteOpacity(parseFloat(e.target.value));
+    const val = parseFloat(e.target.value);
+    if (window.hoverpadDesktop) {
+      window.hoverpadDesktop.setFloatingNoteOpacity(val);
+    } else {
+      document.body.style.opacity = String(val);
+    }
   });
 
   fel.btnOpenMain.addEventListener('click', () => {
-    window.hoverpadDesktop?.focusMainWorkspace(floatState.noteId);
+    if (window.hoverpadDesktop) {
+      window.hoverpadDesktop.focusMainWorkspace(floatState.noteId);
+    } else {
+      (window.parent?.opener || window.opener)?.focus?.();
+    }
   });
 
   fel.btnClose.addEventListener('click', () => {
-    window.hoverpadDesktop?.close();
+    if (window.hoverpadDesktop) {
+      window.hoverpadDesktop.close();
+    } else {
+      (window.parent !== window ? window.parent : window).close();
+    }
   });
 
   fel.tabSnippets.addEventListener('click', () => setFloatMode('snippets'));
@@ -228,12 +261,19 @@ function escapeHtml(str) {
   });
 
   fel.btnCopyAll.addEventListener('click', async () => {
-    await window.hoverpadDesktop?.copyText(floatState.content || floatState.title || '');
+    const text = floatState.content || floatState.title || '';
+    if (window.hoverpadDesktop) {
+      await window.hoverpadDesktop.copyText(text);
+    } else {
+      await navigator.clipboard.writeText(text);
+    }
     showFloatToast('Copied entire note');
   });
 
   fel.btnPasteLine.addEventListener('click', async () => {
-    const clip = await window.hoverpadDesktop?.readClipboard();
+    const clip = window.hoverpadDesktop
+      ? await window.hoverpadDesktop.readClipboard()
+      : await navigator.clipboard.readText();
     if (!clip || !clip.trim()) return;
     const next = floatState.content
       ? `${floatState.content.trimEnd()}\n${clip.trim()}`
@@ -251,7 +291,11 @@ function escapeHtml(str) {
       const line = floatState.lines[idx];
       if (line) {
         e.preventDefault();
-        await window.hoverpadDesktop?.copyText(line);
+        if (window.hoverpadDesktop) {
+          await window.hoverpadDesktop.copyText(line);
+        } else {
+          await navigator.clipboard.writeText(line);
+        }
         showFloatToast(`Copied Line 0${idx + 1}`);
       }
     }

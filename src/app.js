@@ -347,8 +347,10 @@ function getEffectiveNotePlaintext(note) {
 }
 
 // =====================================================================
-// FLOATING PINNED NOTE WINDOW HELPERS (Pin only individual notes)
+// FLOATING PINNED NOTE WINDOW HELPERS (Electron + Browser Document PiP)
 // =====================================================================
+const webFloatingNoteWindows = new Map(); // noteId -> Window (Document Picture-in-Picture or Popup)
+
 function buildFloatingNotePayload(note) {
   if (!note) return null;
   const proj = state.projects.find((p) => p.id === note.project_id);
@@ -377,6 +379,80 @@ function updateFloatingNoteUIIndicators() {
   }
 }
 
+async function openWebFloatingNoteWindow(payload) {
+  const noteId = String(payload.id);
+
+  // Close if already open
+  if (webFloatingNoteWindows.has(noteId)) {
+    const existing = webFloatingNoteWindows.get(noteId);
+    webFloatingNoteWindows.delete(noteId);
+    if (existing && !existing.closed) existing.close();
+    return { isOpen: false, noteId };
+  }
+
+  let pipWin = null;
+  // Use Chrome/Edge Document Picture-in-Picture API for true Always-on-Top OS floating window in browser!
+  if ('documentPictureInPicture' in window) {
+    try {
+      pipWin = await window.documentPictureInPicture.requestWindow({
+        width: 390,
+        height: 460
+      });
+    } catch (_e) {
+      pipWin = null;
+    }
+  }
+
+  if (!pipWin) {
+    pipWin = window.open(
+      `note-pad.html?noteId=${encodeURIComponent(noteId)}`,
+      `hoverpad_note_${noteId}`,
+      'width=390,height=460,menubar=no,toolbar=no,location=no,status=no'
+    );
+    if (!pipWin) {
+      showToast('Please allow popups to pin floating notes in the browser', false);
+      return { isOpen: false, noteId };
+    }
+    webFloatingNoteWindows.set(noteId, pipWin);
+    pipWin.addEventListener('load', () => {
+      pipWin.postMessage({ type: 'note-pad:data', payload }, '*');
+    });
+    const timer = setInterval(() => {
+      if (pipWin.closed) {
+        clearInterval(timer);
+        webFloatingNoteWindows.delete(noteId);
+        state.pinnedFloatingNoteIds.delete(noteId);
+        updateFloatingNoteUIIndicators();
+        renderNotesList();
+      }
+    }, 500);
+    return { isOpen: true, noteId };
+  }
+
+  // Populate Document Picture-in-Picture Always-on-Top Window with iframe to note-pad.html
+  pipWin.document.head.innerHTML = `
+    <title>${escapeHtml(payload.title)} — Pinned Note</title>
+    <style>html,body,iframe{margin:0;padding:0;width:100%;height:100%;border:none;overflow:hidden;}</style>
+  `;
+  const iframe = pipWin.document.createElement('iframe');
+  iframe.src = `note-pad.html?noteId=${encodeURIComponent(noteId)}`;
+  pipWin.document.body.appendChild(iframe);
+
+  iframe.addEventListener('load', () => {
+    iframe.contentWindow?.postMessage({ type: 'note-pad:data', payload }, '*');
+  });
+
+  webFloatingNoteWindows.set(noteId, pipWin);
+  pipWin.addEventListener('pagehide', () => {
+    webFloatingNoteWindows.delete(noteId);
+    state.pinnedFloatingNoteIds.delete(noteId);
+    updateFloatingNoteUIIndicators();
+    renderNotesList();
+  });
+
+  return { isOpen: true, noteId };
+}
+
 async function togglePinIndividualNoteToScreen(noteId) {
   const note = state.notes.find((n) => n.id === noteId);
   if (!note) return;
@@ -389,27 +465,36 @@ async function togglePinIndividualNoteToScreen(noteId) {
   }
 
   const payload = buildFloatingNotePayload(note);
-  if (window.hoverpadDesktop) {
-    const res = await window.hoverpadDesktop.toggleNoteWindow(payload);
-    if (res?.isOpen) {
-      state.pinnedFloatingNoteIds.add(note.id);
-      showToast(`Pinned "${note.title}" as a floating note on screen`);
-    } else {
-      state.pinnedFloatingNoteIds.delete(note.id);
-      showToast(`Unpinned "${note.title}" from screen`);
-    }
-    updateFloatingNoteUIIndicators();
-    renderNotesList();
+  const res = window.hoverpadDesktop
+    ? await window.hoverpadDesktop.toggleNoteWindow(payload)
+    : await openWebFloatingNoteWindow(payload);
+
+  if (res?.isOpen) {
+    state.pinnedFloatingNoteIds.add(note.id);
+    showToast(`Pinned "${note.title}" as a floating note on screen`);
   } else {
-    showToast('Floating note windows require the desktop app', false);
+    state.pinnedFloatingNoteIds.delete(note.id);
+    showToast(`Unpinned "${note.title}" from screen`);
   }
+  updateFloatingNoteUIIndicators();
+  renderNotesList();
 }
 
 function syncFloatingNoteWindowIfOpen(note) {
-  if (!note || !window.hoverpadDesktop) return;
-  if (state.pinnedFloatingNoteIds.has(note.id)) {
-    const payload = buildFloatingNotePayload(note);
+  if (!note || !state.pinnedFloatingNoteIds.has(note.id)) return;
+  const payload = buildFloatingNotePayload(note);
+  if (window.hoverpadDesktop) {
     window.hoverpadDesktop.syncNoteWindowData(payload);
+  } else if (webFloatingNoteWindows.has(note.id)) {
+    const win = webFloatingNoteWindows.get(note.id);
+    if (win && !win.closed) {
+      const iframe = win.document?.querySelector?.('iframe');
+      if (iframe?.contentWindow) {
+        iframe.contentWindow.postMessage({ type: 'note-pad:data', payload }, '*');
+      } else {
+        win.postMessage({ type: 'note-pad:data', payload }, '*');
+      }
+    }
   }
 }
 
@@ -538,6 +623,23 @@ function setEditorMode(mode) {
 function initWindowControls() {
   applyTheme(state.theme);
   setOnlineStatusIndicator(navigator.onLine);
+
+  // Listen for live edits from Web Document Picture-in-Picture floating note windows
+  window.addEventListener('message', (e) => {
+    if (e.data?.type === 'note-pad:edit' && e.data.payload) {
+      const editPayload = e.data.payload;
+      const note = state.notes.find((n) => n.id === editPayload.id);
+      if (!note) return;
+      if (state.activeNoteId === note.id) {
+        el.noteTitleInput.value = editPayload.title ?? note.title;
+        el.noteContentInput.value = editPayload.content ?? '';
+        scheduleNoteSave({
+          title: editPayload.title ?? note.title,
+          content: editPayload.content ?? ''
+        });
+      }
+    }
+  });
 
   window.addEventListener('online', () => {
     setOnlineStatusIndicator(true);
