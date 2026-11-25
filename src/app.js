@@ -21,6 +21,7 @@ const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLI
 // Application State
 const state = {
   user: null,
+  isGuestMode: false,
   profile: null,
   authMode: 'signin', // 'signin' | 'signup'
   theme: localStorage.getItem('hoverpad_theme') || 'light', // 'light' | 'dark'
@@ -69,6 +70,7 @@ const el = {
   authPassword: document.getElementById('auth-password'),
   authError: document.getElementById('auth-error'),
   btnAuthSubmit: document.getElementById('btn-auth-submit'),
+  btnGuestSignin: document.getElementById('btn-guest-signin'),
 
   // Window & Theme Controls
   floatingNotesCountBadge: document.getElementById('floating-notes-count-badge'),
@@ -826,9 +828,48 @@ function enforceProtectedRoute(session) {
   }
 }
 
+function createLocalGuestSession() {
+  const savedGuestId = localStorage.getItem('hoverpad_guest_uid') || `guest-${Math.random().toString(36).slice(2, 10)}`;
+  localStorage.setItem('hoverpad_guest_uid', savedGuestId);
+  localStorage.setItem('hoverpad_guest_active', 'true');
+  state.isGuestMode = true;
+  return {
+    user: {
+      id: savedGuestId,
+      email: 'guest@hoverpad.local',
+      user_metadata: { display_name: 'Guest User' }
+    }
+  };
+}
+
 function initAuthHandlers() {
   el.tabSignin.addEventListener('click', () => setAuthTab('signin'));
   el.tabSignup.addEventListener('click', () => setAuthTab('signup'));
+
+  // Continue as Guest Handler (Tries Supabase Anonymous Auth first, falls back to Local Guest Session)
+  el.btnGuestSignin?.addEventListener('click', async () => {
+    el.authError.classList.add('hidden');
+    el.btnGuestSignin.disabled = true;
+    try {
+      const { data, error } = await supabaseClient.auth.signInAnonymously({
+        options: { data: { display_name: 'Guest User' } }
+      });
+      if (!error && data?.session) {
+        state.isGuestMode = false;
+        localStorage.removeItem('hoverpad_guest_active');
+        showToast('Signed in as Guest!');
+        return;
+      }
+    } catch (_e) {
+      // Fallback to local guest mode below
+    } finally {
+      el.btnGuestSignin.disabled = false;
+    }
+
+    const guestSession = createLocalGuestSession();
+    enforceProtectedRoute(guestSession);
+    showToast('Entered Guest Workspace (Saved locally on device)');
+  });
 
   el.authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -876,6 +917,13 @@ function initAuthHandlers() {
 
   el.btnSignout.addEventListener('click', async () => {
     await flushPendingNoteSaveImmediate();
+    if (state.isGuestMode) {
+      state.isGuestMode = false;
+      localStorage.removeItem('hoverpad_guest_active');
+      enforceProtectedRoute(null);
+      showToast('Exited Guest Workspace');
+      return;
+    }
     await supabaseClient.auth.signOut();
     showToast('Signed out');
   });
@@ -933,7 +981,15 @@ function initAuthHandlers() {
   });
 
   supabaseClient.auth.onAuthStateChange((_event, session) => {
-    enforceProtectedRoute(session);
+    if (session?.user) {
+      state.isGuestMode = false;
+      localStorage.removeItem('hoverpad_guest_active');
+      enforceProtectedRoute(session);
+    } else if (localStorage.getItem('hoverpad_guest_active') === 'true') {
+      enforceProtectedRoute(createLocalGuestSession());
+    } else {
+      enforceProtectedRoute(null);
+    }
   });
 }
 
@@ -974,6 +1030,32 @@ async function bootstrapAuthenticatedWorkspace() {
 }
 
 async function loadProjects(preferredProjectId = null) {
+  if (state.isGuestMode) {
+    const cached = getOfflineSnapshot();
+    if (cached.projects && cached.projects.length > 0) {
+      state.projects = cached.projects;
+    } else {
+      state.projects = [
+        {
+          id: 'guest-project-1',
+          name: 'Product Launch Q3',
+          description: 'Guest Workspace (Saved Locally)',
+          owner_id: state.user.id,
+          invite_code: 'GUEST123'
+        }
+      ];
+    }
+    saveOfflineSnapshot();
+    renderProjectsSidebar();
+    const targetId =
+      preferredProjectId ||
+      state.projects.find((p) => p.id === state.activeProjectId)?.id ||
+      state.projects[0]?.id ||
+      null;
+    if (targetId) await selectProject(targetId);
+    return;
+  }
+
   const { data: projects, error } = await supabaseClient
     .from('projects')
     .select('*')
@@ -1081,6 +1163,24 @@ async function rotateCurrentProjectInviteCode() {
 }
 
 async function loadProjectMembers(projectId) {
+  if (state.isGuestMode) {
+    state.members = [
+      {
+        id: 'guest-member-1',
+        role: 'owner',
+        user_id: state.user.id,
+        profiles: {
+          id: state.user.id,
+          email: 'guest@hoverpad.local',
+          display_name: 'Guest User',
+          avatar_color: '#0071e3'
+        }
+      }
+    ];
+    renderMembersList();
+    return;
+  }
+
   const { data, error } = await supabaseClient
     .from('project_members')
     .select('id, role, user_id, profiles:project_members_user_id_fkey(id, email, display_name, avatar_color)')
@@ -1152,6 +1252,35 @@ function renderMembersList() {
 }
 
 async function loadProjectNotes(projectId) {
+  if (state.isGuestMode) {
+    const cached = getOfflineSnapshot();
+    const cachedNotes = cached.notesByProject?.[projectId];
+    if (cachedNotes && cachedNotes.length > 0) {
+      state.notes = cachedNotes;
+    } else {
+      state.notes = [
+        {
+          id: `guest-note-${Date.now()}`,
+          project_id: projectId,
+          title: 'Staging Deploy & API Endpoints',
+          content:
+            'docker compose -f docker-compose.staging.yml up -d --build\nhttps://staging-api.hoverpad.io/v2/health\nwss://staging-sync.hoverpad.io/ws/rooms\nHP_STAGING_KEY=hp_live_98a7f2c4e1b04d3a99c1',
+          color: '#1e3a5f',
+          is_pinned: true,
+          created_by: state.user.id,
+          updated_by: state.user.id,
+          updated_by_name: 'Guest User',
+          updated_at: new Date().toISOString()
+        }
+      ];
+      saveOfflineSnapshot();
+    }
+    renderNotesList();
+    const keepCurrent = state.notes.find((n) => n.id === state.activeNoteId);
+    selectNote(keepCurrent ? keepCurrent.id : state.notes[0]?.id || null);
+    return;
+  }
+
   const { data: notes, error } = await supabaseClient
     .from('notes')
     .select('*')
@@ -1589,6 +1718,28 @@ async function createNewNote(initialTitle = 'Untitled Note', initialContent = ''
   if (!state.activeProjectId || !state.user) return;
 
   const authorName = getDisplayName();
+  if (state.isGuestMode) {
+    const created = {
+      id: `guest-note-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      project_id: state.activeProjectId,
+      title: initialTitle,
+      content: initialContent,
+      color: '#1e3a5f',
+      is_pinned: false,
+      created_by: state.user.id,
+      updated_by: state.user.id,
+      updated_by_name: authorName,
+      updated_at: new Date().toISOString()
+    };
+    state.notes.unshift(created);
+    saveOfflineSnapshot();
+    selectNote(created.id);
+    setEditorMode('edit');
+    el.noteTitleInput.focus();
+    el.noteTitleInput.select();
+    return;
+  }
+
   const { data: created, error } = await supabaseClient
     .from('notes')
     .insert({
@@ -1703,6 +1854,11 @@ function scheduleNoteSave(partialUpdates = {}) {
     state.saveTimeout = null;
     const { patch } = await buildNoteUpdatePatch(note, partialUpdates);
     saveOfflineSnapshot();
+
+    if (state.isGuestMode) {
+      el.noteSaveStatus.textContent = 'Saved in Guest Workspace';
+      return;
+    }
 
     if (!navigator.onLine) {
       enqueueOfflineNoteUpdate(note.id, patch);
@@ -1848,10 +2004,12 @@ function initWorkspaceHandlers() {
   el.btnDeleteNote.addEventListener('click', async () => {
     if (!state.activeNoteId) return;
     const idToDelete = state.activeNoteId;
-    const { error } = await supabaseClient.from('notes').delete().eq('id', idToDelete);
-    if (error) {
-      showToast(`Delete failed: ${error.message}`, false);
-      return;
+    if (!state.isGuestMode) {
+      const { error } = await supabaseClient.from('notes').delete().eq('id', idToDelete);
+      if (error) {
+        showToast(`Delete failed: ${error.message}`, false);
+        return;
+      }
     }
     if (state.pinnedFloatingNoteIds.has(idToDelete)) {
       window.hoverpadDesktop?.closeNoteWindow(idToDelete);
@@ -2041,6 +2199,26 @@ function initWorkspaceHandlers() {
     const description = el.newProjectDesc.value.trim();
     if (!name) return;
 
+    if (state.isGuestMode) {
+      const created = {
+        id: `guest-proj-${Date.now()}`,
+        name,
+        description,
+        owner_id: state.user.id,
+        invite_code: Math.random().toString(36).slice(2, 10).toUpperCase()
+      };
+      state.projects.push(created);
+      saveOfflineSnapshot();
+      closeModals();
+      showToast(`Created workspace "${created.name}"`);
+      await selectProject(created.id);
+      await createNewNote(
+        'Staging Deploy & Endpoints',
+        'docker compose -f docker-compose.staging.yml up -d --build\nhttps://staging-api.hoverpad.io/v2/health\nHP_STAGING_KEY=hp_live_98a7f2c4e1b04d3a99c1'
+      );
+      return;
+    }
+
     const { data: created, error } = await supabaseClient
       .from('projects')
       .insert({
@@ -2159,5 +2337,11 @@ function escapeHtml(str) {
   initWorkspaceHandlers();
 
   const { data } = await supabaseClient.auth.getSession();
-  enforceProtectedRoute(data?.session || null);
+  if (data?.session) {
+    enforceProtectedRoute(data.session);
+  } else if (localStorage.getItem('hoverpad_guest_active') === 'true') {
+    enforceProtectedRoute(createLocalGuestSession());
+  } else {
+    enforceProtectedRoute(null);
+  }
 })();
