@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;" />
+  <title>Pinned Note — HoverPad</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    body.floating-note-body {
+      background: var(--bg-bento-solid);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      border: 1.5px solid var(--border-card-active);
+    }
+    .float-header {
+      height: 42px;
+      min-height: 42px;
+      background: var(--bg-titlebar);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px;
+      flex-shrink: 0;
+    }
+    .float-drag {
+      flex: 1;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      -webkit-app-region: drag;
+      min-width: 0;
+    }
+    .float-pin-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 7px;
+      border-radius: 99px;
+      background: var(--amber-bg);
+      border: 1px solid var(--amber-border);
+      color: var(--amber);
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      flex-shrink: 0;
+    }
+    .float-project-tag {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .float-actions {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      -webkit-app-region: no-drag;
+    }
+    .float-opacity-wrap {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--bg-surface-subtle);
+      border: 1px solid var(--border-subtle);
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+    .float-opacity-wrap input[type="range"] {
+      width: 44px;
+    }
+    .float-icon-btn {
+      width: 25px;
+      height: 25px;
+      border-radius: 6px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-surface-subtle);
+      color: var(--text-secondary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.12s ease;
+    }
+    .float-icon-btn:hover {
+      background: var(--border-subtle);
+      color: var(--text-main);
+    }
+    .float-icon-btn.close-btn:hover {
+      background: var(--danger);
+      border-color: var(--danger);
+      color: #ffffff;
+    }
+    .float-toolbar {
+      padding: 8px 12px 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .float-title-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      outline: none;
+      min-width: 0;
+    }
+    .float-subbar {
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      background: var(--bg-surface-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .float-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .float-footer {
+      padding: 6px 12px;
+      border-top: 1px solid var(--border-subtle);
+      background: var(--bg-surface-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+  </style>
+</head>
+<body class="floating-note-body">
+  <!-- Floating Sticky Note Titlebar -->
+  <header class="float-header">
+    <div class="float-drag">
+      <span class="float-pin-pill" id="float-pin-badge">
+        <span class="material-symbols-outlined" style="font-size:11px;">push_pin</span>
+        <span>PINNED NOTE</span>
+      </span>
+      <span class="float-project-tag" id="float-project-name">HoverPad</span>
+    </div>
+
+    <div class="float-actions">
+      <div class="float-opacity-wrap" title="Adjust floating note transparency">
+        <span class="material-symbols-outlined" style="font-size:13px;color:var(--text-muted);">opacity</span>
+        <input type="range" id="float-opacity-slider" class="macos-slider" min="0.45" max="1" step="0.05" value="0.95" />
+      </div>
+
+      <button type="button" class="float-icon-btn" id="btn-float-open-main" title="Show in Main HoverPad Workspace">
+        <span class="material-symbols-outlined" style="font-size:15px;">open_in_new</span>
+      </button>
+
+      <button type="button" class="float-icon-btn close-btn" id="btn-float-close" title="Unpin & Close Floating Note">
+        <span class="material-symbols-outlined" style="font-size:15px;">close</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Note Title & Copy All Button -->
+  <div class="float-toolbar">
+    <input type="text" id="float-note-title" class="float-title-input" placeholder="Note Title..." />
+    <button type="button" class="btn-tool btn-copy-highlight" id="btn-float-copy-all" title="Copy entire note">
+      <span class="material-symbols-outlined" style="font-size:13px;">copy_all</span>
+      <span>Copy All</span>
+    </button>
+  </div>
+
+  <!-- Mode Switcher: Quick Copy Lines vs Live Edit -->
+  <div class="float-subbar">
+    <div class="segmented-control">
+      <button type="button" class="subtab active" id="float-tab-snippets" style="padding:3px 8px;font-size:11px;">
+        <span class="material-symbols-outlined" style="font-size:13px;">bolt</span>
+        <span>Quick Copy</span>
+      </button>
+      <button type="button" class="subtab" id="float-tab-edit" style="padding:3px 8px;font-size:11px;">
+        <span class="material-symbols-outlined" style="font-size:13px;">edit</span>
+        <span>Edit</span>
+      </button>
+    </div>
+
+    <button type="button" class="subtab-append-clip" id="btn-float-paste-line" style="padding:3px 8px;font-size:11px;" title="Append current clipboard as a new line">
+      <span class="material-symbols-outlined" style="font-size:13px;">add</span>
+      <span>Paste</span>
+    </button>
+  </div>
+
+  <!-- Body: Line-by-Line Quick Copy or Live Textarea -->
+  <div class="float-main">
+    <div id="float-snippets-view" class="note-snippets-view" style="padding:10px;"></div>
+    <textarea id="float-content-textarea" class="note-content-textarea hidden" style="padding:10px 12px;font-size:12px;" placeholder="Type or paste lines here..."></textarea>
+  </div>
+
+  <!-- Footer -->
+  <footer class="float-footer">
+    <span id="float-status-text">Live synced with workspace</span>
+    <span>Click any line or <kbd class="inline-kbd">Alt+1..9</kbd> to copy</span>
+  </footer>
+
+  <div id="toast-container" class="toast-container"></div>
+  <script src="note-pad.js"></script>
+</body>
+</html>

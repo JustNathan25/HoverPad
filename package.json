@@ -1,0 +1,62 @@
+{
+  "name": "hoverpad",
+  "productName": "HoverPad",
+  "version": "1.0.0",
+  "description": "HoverPad — Real-time Collaborative Floating Notes & Clipboard Workspace for Windows",
+  "author": "HoverPad Team",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis portable"
+  },
+  "build": {
+    "appId": "com.hoverpad.desktop",
+    "productName": "HoverPad",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "HoverPad",
+      "runAfterFinish": true
+    },
+    "portable": {
+      "artifactName": "HoverPad-Portable-${version}.exe"
+    }
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.49.1"
+  },
+  "devDependencies": {
+    "electron": "35.1.2",
+    "electron-builder": "26.0.12"
+  }
+}

@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en" class="theme-light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co;" />
+  <title>HoverPad — Collaborative Floating Notes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ===================================================================== -->
+  <!-- APPLE MACOS UNIFIED FROSTED GLASS TOOLBAR / TITLE BAR                 -->
+  <!-- ===================================================================== -->
+  <header class="titlebar" id="titlebar">
+    <div class="titlebar-left">
+      <!-- Authentic macOS Traffic Light Window Controls -->
+      <div class="traffic-lights" aria-label="Window controls">
+        <button class="traffic-dot dot-close" id="btn-close" title="Close (Minimizes to Tray when Close-to-Tray is active)" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 6L6 18M6 6l12 12" stroke-linecap="round"/></svg>
+        </button>
+        <button class="traffic-dot dot-min" id="btn-minimize" title="Minimize" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14" stroke-linecap="round"/></svg>
+        </button>
+        <button class="traffic-dot dot-max" id="btn-maximize" title="Maximize / Restore" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M7 17L17 7M7 7h10v10" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+
+      <!-- Draggable Brand Area -->
+      <div class="titlebar-drag">
+        <div class="app-brand">
+          <div class="brand-logo">
+            <span class="material-symbols-outlined brand-icon">layers</span>
+          </div>
+          <span class="brand-title">HoverPad</span>
+          <span class="pin-badge hidden" id="floating-notes-count-badge" title="Active Floating Pinned Notes on Screen">
+            <span class="material-symbols-outlined pin-badge-icon">push_pin</span>
+            <span id="floating-notes-count-label">1 Note Pinned</span>
+          </span>
+          <span class="sync-indicator" id="sync-indicator" title="Supabase Realtime Mesh Sync">
+            <span class="sync-dot" id="sync-dot"></span>
+            <span class="sync-label" id="sync-label">Live</span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="titlebar-actions">
+      <!-- Theme Switcher: Daylight Light Mode <-> Dark macOS Edition -->
+      <button class="tb-btn" id="btn-theme-toggle" title="Switch between Daylight Light Mode and Dark macOS Edition" type="button">
+        <span class="material-symbols-outlined tb-icon" id="theme-toggle-icon">light_mode</span>
+        <span class="tb-btn-text" id="theme-toggle-label">Daylight</span>
+      </button>
+
+      <div class="tb-divider"></div>
+
+      <!-- Topbar User Avatar Pill (Opens Security & App Preferences) -->
+      <button class="topbar-avatar" id="topbar-user-avatar" title="Security & App Preferences" type="button">HP</button>
+    </div>
+  </header>
+
+  <!-- Toast Notification Banner -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- ===================================================================== -->
+  <!-- PROTECTED ROUTE GUARD: AUTH VIEW (Shown when unauthenticated)          -->
+  <!-- ===================================================================== -->
+  <main id="auth-view" class="auth-screen hidden">
+    <div class="auth-ambient-orb orb-1"></div>
+    <div class="auth-ambient-orb orb-2"></div>
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="auth-icon-circle">
+          <span class="material-symbols-outlined">layers</span>
+        </div>
+        <h1>Welcome to HoverPad</h1>
+        <p>Collaborative notes &amp; instant multi-device clipboard. Pin any note to float over your active screen.</p>
+      </div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tab-signin" type="button">Sign In</button>
+        <button class="auth-tab" id="tab-signup" type="button">Create Account</button>
+      </div>
+
+      <form id="auth-form" class="auth-form">
+        <div class="form-group hidden" id="group-display-name">
+          <label for="auth-name">Your Name</label>
+          <input type="text" id="auth-name" placeholder="e.g. Alex Mercer" autocomplete="name" />
+        </div>
+
+        <div class="form-group">
+          <label for="auth-email">Email Address</label>
+          <input type="email" id="auth-email" placeholder="you@gmail.com" required autocomplete="email" />
+        </div>
+
+        <div class="form-group">
+          <label for="auth-password">Password</label>
+          <input type="password" id="auth-password" placeholder="••••••••" required minlength="6" autocomplete="current-password" />
+        </div>
+
+        <div id="auth-error" class="auth-error hidden"></div>
+
+        <button type="submit" class="btn-primary btn-block" id="btn-auth-submit">
+          Sign In to Workspace
+        </button>
+      </form>
+
+      <!-- Minimalist Logo-Only OAuth Sign In / Sign Up Row -->
+      <div class="oauth-divider">
+        <span>or continue with</span>
+      </div>
+
+      <div class="oauth-logo-row" aria-label="Single Sign-On Providers">
+        <!-- Google -->
+        <button type="button" class="oauth-icon-btn" data-oauth-provider="google" title="Continue with Google">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+        </button>
+
+        <!-- Discord -->
+        <button type="button" class="oauth-icon-btn" data-oauth-provider="discord" title="Continue with Discord">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="#5865F2" aria-hidden="true">
+            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+          </svg>
+        </button>
+
+        <!-- GitHub -->
+        <button type="button" class="oauth-icon-btn" data-oauth-provider="github" title="Continue with GitHub">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+            <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+          </svg>
+        </button>
+
+        <!-- Microsoft Outlook -->
+        <button type="button" class="oauth-icon-btn" data-oauth-provider="azure" title="Continue with Microsoft Outlook">
+          <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+            <rect x="2" y="2" width="9.3" height="9.3" fill="#F25022" rx="1.2"/>
+            <rect x="12.7" y="2" width="9.3" height="9.3" fill="#7FBA00" rx="1.2"/>
+            <rect x="2" y="12.7" width="9.3" height="9.3" fill="#00A4EF" rx="1.2"/>
+            <rect x="12.7" y="12.7" width="9.3" height="9.3" fill="#FFB900" rx="1.2"/>
+          </svg>
+        </button>
+
+        <!-- Facebook -->
+        <button type="button" class="oauth-icon-btn" data-oauth-provider="facebook" title="Continue with Facebook">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="#1877F2" aria-hidden="true">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="auth-footer">
+        <span class="material-symbols-outlined" style="font-size:13px;vertical-align:middle;">verified_user</span>
+        <span>Secured by Supabase Auth, RLS &amp; Client-Side AES-256 E2EE</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- PROTECTED ROUTE: WORKSPACE VIEW (Shown only when authenticated)        -->
+  <!-- ===================================================================== -->
+  <div id="workspace-view" class="workspace-shell hidden">
+    <!-- Far-Left macOS Library Navigation Rail -->
+    <aside class="nav-rail" id="nav-rail">
+      <nav class="nav-rail-links">
+        <div class="nav-rail-section-label">LIBRARY</div>
+        <button type="button" class="nav-rail-item active" data-nav-view="workspace">
+          <span class="material-symbols-outlined nav-icon">edit_note</span>
+          <span>Workspace</span>
+        </button>
+        <button type="button" class="nav-rail-item" data-nav-view="clipboard">
+          <span class="material-symbols-outlined nav-icon">content_paste</span>
+          <span>Quick Snippets</span>
+        </button>
+        <button type="button" class="nav-rail-item" data-nav-view="sessions">
+          <span class="material-symbols-outlined nav-icon">group</span>
+          <span>Shared Sessions</span>
+        </button>
+        <button type="button" class="nav-rail-item" data-nav-view="settings">
+          <span class="material-symbols-outlined nav-icon">tune</span>
+          <span>Preferences</span>
+        </button>
+      </nav>
+
+      <div class="nav-rail-footer">
+        <span class="nav-version">
+          <span class="version-dot"></span>
+          <span>v2.6 Stitch</span>
+        </span>
+        <span class="nav-fps">E2EE</span>
+      </div>
+    </aside>
+
+    <!-- Main 3-Pane Bento Workspace Canvas -->
+    <div class="workspace-layout" id="workspace-layout">
+      <!-- PANE 1: Workspaces & Collaborators Source List -->
+      <aside class="sidebar bento-pane" id="sidebar">
+        <div class="sidebar-top-scroll">
+          <div class="sidebar-section">
+            <div class="section-header">
+              <span class="section-title">WORKSPACES</span>
+              <div class="section-actions">
+                <button class="pill-action-btn" id="btn-join-project-modal" title="Join Workspace with Invite Code" type="button">
+                  <span class="material-symbols-outlined">key</span>
+                  <span>Join</span>
+                </button>
+                <button class="pill-action-btn primary" id="btn-new-project-modal" title="Create New Shared Workspace" type="button">
+                  <span class="material-symbols-outlined">add</span>
+                  <span>New</span>
+                </button>
+              </div>
+            </div>
+
+            <div id="projects-list" class="projects-list">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+
+          <!-- Current Project Invite & Collaborators Box -->
+          <div class="sidebar-section collab-section" id="collab-panel">
+            <div class="section-header">
+              <span class="section-title">MEMBERS</span>
+              <div class="section-actions">
+                <button class="icon-btn" id="btn-rotate-invite-code" title="Rotate / Regenerate Invite Code (Owner Only)" type="button" style="width:22px;height:22px;">
+                  <span class="material-symbols-outlined" style="font-size:14px;">refresh</span>
+                </button>
+                <button class="btn-xs-invite" id="btn-open-invite-modal" title="Invite other users to edit & add notes" type="button">
+                  <span class="material-symbols-outlined" style="font-size:13px;">person_add</span>
+                  <span>Invite</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="invite-code-strip" id="invite-code-strip" title="Click to copy project invite code">
+              <div class="invite-code-meta">
+                <span class="invite-code-caption">INVITE CODE</span>
+                <strong class="invite-code-value" id="current-project-code">--------</strong>
+              </div>
+              <span class="copy-pill">
+                <span class="material-symbols-outlined" style="font-size:13px;">content_copy</span>
+                <span>Copy</span>
+              </span>
+            </div>
+
+            <div id="members-list" class="members-list">
+              <!-- Populated dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Logged-in User Footer -->
+        <div class="sidebar-user">
+          <div class="user-avatar" id="current-user-avatar">U</div>
+          <div class="user-details">
+            <div class="user-name" id="current-user-name">User</div>
+            <div class="user-email" id="current-user-email">user@example.com</div>
+          </div>
+          <button class="icon-btn" id="btn-open-settings" title="Security & App Preferences" type="button">
+            <span class="material-symbols-outlined" style="font-size:17px;">tune</span>
+          </button>
+          <button class="icon-btn" id="btn-signout" title="Sign Out" type="button">
+            <span class="material-symbols-outlined" style="font-size:17px;">logout</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- PANE 2: Middle Source List / Note Feed -->
+      <section class="notes-list-pane bento-pane" id="notes-list-pane">
+        <div class="pane-header">
+          <div class="project-header-info">
+            <div class="project-title-row">
+              <button class="icon-btn mobile-toggle" id="btn-toggle-sidebar" title="Toggle Workspaces Sidebar" type="button">
+                <span class="material-symbols-outlined" style="font-size:17px;">side_navigation</span>
+              </button>
+              <h2 id="active-project-name">Loading...</h2>
+            </div>
+            <span class="notes-count-subtitle" id="active-project-subtitle">0 notes</span>
+          </div>
+
+          <div class="pane-header-actions">
+            <button class="btn-secondary btn-sm" id="btn-paste-new-note" title="Create a new note directly from your clipboard (or press Ctrl+Shift+V anywhere)" type="button">
+              <span class="material-symbols-outlined" style="font-size:14px;">content_paste_go</span>
+              <span>Paste</span>
+            </button>
+            <button class="btn-primary btn-sm" id="btn-create-note" title="Add a new note to this project (Ctrl+N)" type="button">
+              <span class="material-symbols-outlined" style="font-size:15px;">add</span>
+              <span>New</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="search-bar-wrap">
+          <div class="search-input-box">
+            <span class="material-symbols-outlined search-icon">search</span>
+            <input type="text" id="notes-search-input" placeholder="Search notes, snippets, or commands..." />
+            <kbd class="search-kbd">⌘K</kbd>
+          </div>
+        </div>
+
+        <div id="notes-cards-container" class="notes-cards-container">
+          <!-- Populated dynamically with note cards, Pin-on-Screen buttons & one-click Copy buttons -->
+        </div>
+      </section>
+
+      <!-- PANE 3: Detail Pane (Collaborative Editor & Line-by-Line Quick Copy) -->
+      <section class="editor-pane bento-pane" id="editor-pane">
+        <div id="editor-empty-state" class="editor-empty-state">
+          <div class="empty-icon-circle">
+            <span class="material-symbols-outlined">push_pin</span>
+          </div>
+          <h3>Select or create a note</h3>
+          <p>Every note in this workspace syncs live across collaborators. Click <strong>Pin Note on Screen</strong> on any note to float it over your other apps.</p>
+          <button class="btn-primary" id="btn-empty-create-note" type="button">
+            <span class="material-symbols-outlined" style="font-size:16px;">add</span>
+            <span>Create First Note</span>
+          </button>
+        </div>
+
+        <div id="editor-active-container" class="editor-active-container hidden">
+          <div class="editor-toolbar">
+            <div class="editor-meta">
+              <span class="sync-status-dot" id="editor-sync-dot"></span>
+              <span class="live-status-pill" id="note-save-status">Synced to Cloud</span>
+              <span class="meta-sep">•</span>
+              <span class="last-edited-by" id="note-updated-by"></span>
+              <span class="typing-presence-pill hidden" id="typing-presence-pill"></span>
+            </div>
+
+            <div class="editor-actions">
+              <!-- Color Accent Tags -->
+              <div class="color-picker-dots" id="note-color-picker">
+                <button type="button" class="color-dot" data-color="#1e293b" style="background:#64748b" title="Default Slate"></button>
+                <button type="button" class="color-dot" data-color="#1e3a5f" style="background:#0071e3" title="macOS Blue"></button>
+                <button type="button" class="color-dot" data-color="#144336" style="background:#10b981" title="Emerald"></button>
+                <button type="button" class="color-dot" data-color="#4d2c19" style="background:#f59e0b" title="Amber"></button>
+                <button type="button" class="color-dot" data-color="#4c1d4b" style="background:#ec4899" title="Rose"></button>
+              </div>
+
+              <!-- End-to-End Encryption (AES-GCM 256) Note Lock Button -->
+              <button class="btn-tool" id="btn-e2ee-note" title="Encrypt or Decrypt this note with a local AES-256 Passphrase (Zero-Knowledge E2EE)" type="button">
+                <span class="material-symbols-outlined tool-icon" id="e2ee-note-icon">lock_open</span>
+                <span id="e2ee-note-text">Encrypt</span>
+              </button>
+
+              <!-- Star Note to Top of Feed -->
+              <button class="btn-tool" id="btn-pin-note-item" title="Star this note to top of project list" type="button">
+                <span class="material-symbols-outlined tool-icon" id="pin-note-icon">star</span>
+                <span id="pin-note-text">Star</span>
+              </button>
+
+              <!-- Pin Individual Note on Screen (Pops out dedicated floating Always-on-Top Note window) -->
+              <button class="btn-tool" id="btn-float-note-window" title="Pop out & Pin ONLY this note on top of your screen (Ctrl+Shift+P)" type="button">
+                <span class="material-symbols-outlined tool-icon" id="float-note-icon" style="color:var(--amber);">push_pin</span>
+                <span id="float-note-label">Pin Note on Screen</span>
+              </button>
+
+              <button class="btn-tool btn-copy-highlight" id="btn-copy-entire-note" title="Copy full note text to clipboard" type="button">
+                <span class="material-symbols-outlined tool-icon">content_copy</span>
+                <span>Copy Note</span>
+              </button>
+
+              <button class="btn-tool btn-danger-icon" id="btn-delete-note" title="Delete Note" type="button">
+                <span class="material-symbols-outlined tool-icon">delete</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="editor-title-block">
+            <input
+              type="text"
+              id="note-title-input"
+              class="note-title-input"
+              placeholder="Note Title..."
+            />
+            <div class="note-subtitle-meta">
+              <span id="note-lines-count">0 snippets</span>
+              <span>•</span>
+              <span>Click any line or press <kbd class="inline-kbd">Alt+1..9</kbd> to copy • Click <strong>Pin Note on Screen</strong> to float this note</span>
+            </div>
+          </div>
+
+          <!-- Dual-Mode Switcher: Live Editor vs Line-by-Line Quick Copy -->
+          <div class="editor-subtabs">
+            <div class="segmented-control">
+              <button type="button" class="subtab active" id="subtab-edit">
+                <span class="material-symbols-outlined" style="font-size:15px;">edit</span>
+                <span>Live Editor</span>
+              </button>
+              <button type="button" class="subtab" id="subtab-snippets">
+                <span class="material-symbols-outlined" style="font-size:15px;">bolt</span>
+                <span>Line-by-Line Quick Copy</span>
+              </button>
+            </div>
+
+            <button type="button" class="subtab-append-clip" id="btn-append-clipboard" title="Paste current clipboard onto a new line in this note (Global hotkey: Ctrl+Shift+V)">
+              <span class="material-symbols-outlined" style="font-size:15px;">add</span>
+              <span>Paste Line</span>
+            </button>
+          </div>
+
+          <!-- Locked E2EE State Overlay (Shown when note is AES-256 encrypted and locked) -->
+          <div id="e2ee-locked-overlay" class="e2ee-locked-overlay hidden">
+            <div class="empty-icon-circle" style="background:var(--amber-bg);color:var(--amber);">
+              <span class="material-symbols-outlined">encrypted</span>
+            </div>
+            <h3>End-to-End Encrypted Note</h3>
+            <p>This note is locked with AES-GCM 256-bit client-side encryption. Enter the passphrase to decrypt it locally in memory or remove the lock.</p>
+            <div class="inline-input-row" style="max-width:310px;width:100%;margin-top:8px;">
+              <input type="password" id="e2ee-unlock-passphrase" class="e2ee-input" placeholder="Enter passphrase..." />
+              <button type="button" class="btn-primary" id="btn-e2ee-unlock-submit">Unlock</button>
+            </div>
+          </div>
+
+          <textarea
+            id="note-content-input"
+            class="note-content-textarea"
+            placeholder="Type or paste commands, URLs, secrets, or notes here... Each line becomes a one-click copyable row in Quick Copy & Floating Note mode."
+          ></textarea>
+
+          <!-- Line-by-Line Quick Copy View (Apple macOS Bento Snippet Rows) -->
+          <div id="note-snippets-view" class="note-snippets-view hidden">
+            <!-- Populated dynamically from note lines -->
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODALS: Create Project, Join, Invite, E2EE Lock, Preferences          -->
+  <!-- ===================================================================== -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <!-- 1. Create New Project Modal -->
+    <div id="modal-new-project" class="modal-card hidden">
+      <div class="modal-header">
+        <h3>Create Shared Workspace</h3>
+        <button class="modal-close" data-close-modal type="button">&times;</button>
+      </div>
+      <form id="form-new-project">
+        <div class="form-group">
+          <label for="new-project-name">Workspace Name</label>
+          <input type="text" id="new-project-name" placeholder="e.g. Product Launch Q3, DevOps Snippets" required />
+        </div>
+        <div class="form-group">
+          <label for="new-project-desc">Description (Optional)</label>
+          <input type="text" id="new-project-desc" placeholder="Shared notes and commands for our team" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" data-close-modal>Cancel</button>
+          <button type="submit" class="btn-primary">Create Workspace</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- 2. Invite Collaborator Modal -->
+    <div id="modal-invite-user" class="modal-card hidden">
+      <div class="modal-header">
+        <h3>Invite Collaborators</h3>
+        <button class="modal-close" data-close-modal type="button">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-hint">Invited teammates can add, edit, and copy notes in real time inside <strong id="invite-modal-project-name">this workspace</strong>.</p>
+        <form id="form-invite-email">
+          <div class="form-group">
+            <label for="invite-email-input">Invite by HoverPad User Email</label>
+            <div class="inline-input-row">
+              <input type="email" id="invite-email-input" placeholder="teammate@gmail.com" required />
+              <button type="submit" class="btn-primary">Send Invite</button>
+            </div>
+          </div>
+        </form>
+
+        <div class="divider-text"><span>OR SHARE INVITE CODE</span></div>
+
+        <div class="share-code-box">
+          <div>
+            <div class="share-code-label">8-Character Workspace Invite Code</div>
+            <div class="share-code-big" id="modal-invite-code-display">--------</div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button type="button" class="btn-secondary" id="btn-modal-rotate-code" title="Generate a brand-new invite code and invalidate the old one">
+              <span class="material-symbols-outlined" style="font-size:15px;">refresh</span>
+              <span>Rotate</span>
+            </button>
+            <button type="button" class="btn-secondary" id="btn-modal-copy-code">
+              <span class="material-symbols-outlined" style="font-size:15px;">content_copy</span>
+              <span>Copy</span>
+            </button>
+          </div>
+        </div>
+        <p class="modal-subhint">Workspace owners can click <strong>Rotate</strong> anytime to invalidate an old code.</p>
+      </div>
+    </div>
+
+    <!-- 3. Join Project by Invite Code Modal -->
+    <div id="modal-join-project" class="modal-card hidden">
+      <div class="modal-header">
+        <h3>Join Shared Workspace</h3>
+        <button class="modal-close" data-close-modal type="button">&times;</button>
+      </div>
+      <form id="form-join-project">
+        <div class="form-group">
+          <label for="join-code-input">Enter 8-Character Workspace Invite Code</label>
+          <input type="text" id="join-code-input" placeholder="e.g. HP8492XK" required maxlength="12" style="text-transform:uppercase;letter-spacing:2px;font-weight:700;" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" data-close-modal>Cancel</button>
+          <button type="submit" class="btn-primary">Join Workspace</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- 4. End-to-End Encryption (AES-GCM 256) Passphrase Modal -->
+    <div id="modal-e2ee-lock" class="modal-card hidden">
+      <div class="modal-header">
+        <h3>End-to-End Encrypt Note (AES-256)</h3>
+        <button class="modal-close" data-close-modal type="button">&times;</button>
+      </div>
+      <form id="form-e2ee-lock">
+        <p class="modal-hint">Encrypt this note locally using Web Crypto <strong>AES-GCM 256-bit</strong> before syncing to Supabase. Only teammates who know the passphrase can unlock it.</p>
+        <div class="form-group">
+          <label for="e2ee-set-passphrase">Encryption Passphrase</label>
+          <input type="password" id="e2ee-set-passphrase" placeholder="Enter a strong passphrase..." required minlength="4" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" data-close-modal>Cancel</button>
+          <button type="submit" class="btn-primary">
+            <span class="material-symbols-outlined" style="font-size:15px;">lock</span>
+            <span>Encrypt &amp; Lock Note</span>
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- 5. Security & Convenience Preferences Modal -->
+    <div id="modal-settings" class="modal-card hidden" style="max-width:450px;">
+      <div class="modal-header">
+        <h3>Security &amp; Preferences</h3>
+        <button class="modal-close" data-close-modal type="button">&times;</button>
+      </div>
+      <div class="settings-list">
+        <label class="setting-row">
+          <div class="setting-info">
+            <div class="setting-title">Auto-Mask Secrets in Quick Copy (`••••••`)</div>
+            <div class="setting-desc">Automatically masks API keys, tokens, and passwords visually until you click the eye icon, while Copy still copies the real value.</div>
+          </div>
+          <input type="checkbox" id="toggle-setting-mask-secrets" checked />
+        </label>
+
+        <label class="setting-row">
+          <div class="setting-info">
+            <div class="setting-title">Auto-Clear Secret Clipboard after 30s</div>
+            <div class="setting-desc">Automatically wipes your Windows clipboard 30 seconds after copying a secret line so credentials don't linger.</div>
+          </div>
+          <input type="checkbox" id="toggle-setting-autoclear-clip" checked />
+        </label>
+
+        <label class="setting-row">
+          <div class="setting-info">
+            <div class="setting-title">Close Button Minimizes to System Tray</div>
+            <div class="setting-desc">Keeps HoverPad running in the background tray for instant quick-paste with <code>Ctrl+Shift+V</code>.</div>
+          </div>
+          <input type="checkbox" id="toggle-setting-close-tray" checked />
+        </label>
+
+        <label class="setting-row">
+          <div class="setting-info">
+            <div class="setting-title">Launch HoverPad at Windows Startup</div>
+            <div class="setting-desc">Automatically start HoverPad when you log in to Windows.</div>
+          </div>
+          <input type="checkbox" id="toggle-setting-startup" />
+        </label>
+      </div>
+
+      <div class="settings-hotkeys-box">
+        <div class="setting-title" style="margin-bottom:4px;">Global &amp; Quick Hotkeys</div>
+        <div class="hotkey-grid">
+          <span>Pin / Float Active Note on Screen</span><kbd>Ctrl+Shift+P</kbd>
+          <span>Quick-Paste Clipboard Everywhere</span><kbd>Ctrl+Shift+V</kbd>
+          <span>Instant Copy Snippet Line 1–9</span><kbd>Alt+1 .. Alt+9</kbd>
+          <span>Search Notes &amp; Snippets</span><kbd>Ctrl+K</kbd>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="justify-content:space-between;">
+        <button type="button" class="btn-secondary" id="btn-quit-hoverpad-completely" style="color:var(--danger);border-color:var(--danger-soft);">
+          Quit HoverPad Completely
+        </button>
+        <button type="button" class="btn-primary" data-close-modal>Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Load Supabase JS SDK from node_modules and App Controller -->
+  <script src="../node_modules/@supabase/supabase-js/dist/umd/supabase.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
