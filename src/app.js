@@ -894,11 +894,25 @@ function initAuthHandlers() {
       const label = OAUTH_LABELS[provider] || provider;
       el.authError.classList.add('hidden');
       try {
+        // Verify provider is enabled in Supabase Auth settings before opening external browser
+        const settingsRes = await fetch(`${SUPABASE_URL}/auth/v1/settings`, {
+          headers: { apikey: SUPABASE_PUBLISHABLE_KEY }
+        });
+        if (settingsRes.ok) {
+          const settings = await settingsRes.json();
+          const isEnabled = settings?.external?.[provider];
+          if (isEnabled === false) {
+            el.authError.innerHTML = `<strong>${escapeHtml(label)} Sign-In is not enabled yet.</strong> Enable <em>${escapeHtml(label)}</em> in your Supabase Dashboard &rarr; Authentication &rarr; Providers, or sign in with Email &amp; Password above.`;
+            el.authError.classList.remove('hidden');
+            return;
+          }
+        }
+
         const { data, error } = await supabaseClient.auth.signInWithOAuth({
           provider,
           options: {
-            redirectTo: window.hoverpadDesktop ? 'hoverpad://auth/callback' : window.location.origin,
-            skipBrowserRedirect: Boolean(window.hoverpadDesktop),
+            redirectTo: window.hoverpadDesktop ? 'hoverpad://auth/callback' : window.location.href,
+            skipBrowserRedirect: true,
             ...(provider === 'azure' ? { scopes: 'email profile openid' } : {})
           }
         });
