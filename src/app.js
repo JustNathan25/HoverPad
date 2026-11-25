@@ -86,6 +86,10 @@ const el = {
   syncLabel: document.getElementById('sync-label'),
 
   // Sidebar & Projects
+  workspaceLayout: document.getElementById('workspace-layout'),
+  sidebarDrawerBackdrop: document.getElementById('sidebar-drawer-backdrop'),
+  btnCloseSidebarDrawer: document.getElementById('btn-close-sidebar-drawer'),
+  btnMobileBackNotes: document.getElementById('btn-mobile-back-notes'),
   navRail: document.getElementById('nav-rail'),
   sidebar: document.getElementById('sidebar'),
   btnToggleSidebar: document.getElementById('btn-toggle-sidebar'),
@@ -766,8 +770,45 @@ function initWindowControls() {
   el.btnMaximize.addEventListener('click', () => window.hoverpadDesktop?.maximize());
   el.btnClose.addEventListener('click', () => window.hoverpadDesktop?.close());
 
+  function toggleResponsiveSidebar(forceOpen) {
+    const isTabletOrSmaller = window.innerWidth <= 960;
+    if (isTabletOrSmaller) {
+      const nextOpen =
+        typeof forceOpen === 'boolean'
+          ? forceOpen
+          : !el.sidebar.classList.contains('drawer-open');
+      el.sidebar.classList.toggle('drawer-open', nextOpen);
+      el.sidebarDrawerBackdrop?.classList.toggle('hidden', !nextOpen);
+    } else {
+      el.sidebar.classList.remove('drawer-open');
+      el.sidebarDrawerBackdrop?.classList.add('hidden');
+      const nextHidden =
+        typeof forceOpen === 'boolean' ? !forceOpen : !el.sidebar.classList.contains('hidden');
+      el.sidebar.classList.toggle('hidden', nextHidden);
+    }
+  }
+
   el.btnToggleSidebar.addEventListener('click', () => {
-    el.sidebar.classList.toggle('hidden');
+    toggleResponsiveSidebar();
+  });
+
+  el.btnCloseSidebarDrawer?.addEventListener('click', () => {
+    toggleResponsiveSidebar(false);
+  });
+
+  el.sidebarDrawerBackdrop?.addEventListener('click', () => {
+    toggleResponsiveSidebar(false);
+  });
+
+  el.btnMobileBackNotes?.addEventListener('click', () => {
+    el.workspaceLayout?.classList.remove('mobile-editor-open');
+  });
+
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 960) {
+      el.sidebar.classList.remove('drawer-open');
+      el.sidebarDrawerBackdrop?.classList.add('hidden');
+    }
   });
 
   // Left Library Nav Rail Quick Actions
@@ -777,13 +818,19 @@ function initWindowControls() {
       navBtn.classList.add('active');
       const view = navBtn.dataset.navView;
       if (view === 'workspace') {
-        el.sidebar.classList.remove('hidden');
+        if (window.innerWidth <= 960) {
+          toggleResponsiveSidebar(true);
+        } else {
+          el.sidebar.classList.remove('hidden');
+        }
         setEditorMode('edit');
       } else if (view === 'clipboard') {
+        if (window.innerWidth <= 740 && state.activeNoteId) {
+          el.workspaceLayout?.classList.add('mobile-editor-open');
+        }
         setEditorMode('snippets');
         showToast('Line-by-Line Quick Snippets View');
       } else if (view === 'sessions') {
-        el.sidebar.classList.remove('hidden');
         el.btnOpenInviteModal.click();
       } else if (view === 'settings') {
         openSettingsModal();
@@ -1124,6 +1171,9 @@ function renderProjectsSidebar() {
 async function selectProject(projectId) {
   await flushPendingNoteSaveImmediate();
   state.activeProjectId = projectId;
+  // Auto-close slide-over drawer on tablet/mobile after selecting a workspace
+  el.sidebar?.classList.remove('drawer-open');
+  el.sidebarDrawerBackdrop?.classList.add('hidden');
   renderProjectsSidebar();
 
   const currentProject = state.projects.find((p) => p.id === projectId);
@@ -1385,14 +1435,14 @@ function renderNotesList() {
       if (e.target.closest('[data-copy-note]')) {
         e.stopPropagation();
         if (isEncrypted && plaintext === null) {
-          selectNote(note.id);
+          selectNote(note.id, true);
           showToast('Unlock this encrypted note first to copy', false);
           return;
         }
         copyToClipboard(plaintext || note.title || '', `"${note.title}"`);
         return;
       }
-      selectNote(note.id);
+      selectNote(note.id, true);
     });
 
     el.notesCardsContainer.appendChild(card);
@@ -1414,9 +1464,14 @@ function updateE2eeToolbarButton(note) {
   }
 }
 
-function selectNote(noteId) {
+function selectNote(noteId, openMobileEditor = false) {
   state.activeNoteId = noteId;
   state.revealedSecretLines.clear();
+  if (openMobileEditor && noteId) {
+    el.workspaceLayout?.classList.add('mobile-editor-open');
+  } else if (!noteId) {
+    el.workspaceLayout?.classList.remove('mobile-editor-open');
+  }
   renderNotesList();
   updateFloatingNoteUIIndicators();
 
@@ -1733,7 +1788,7 @@ async function createNewNote(initialTitle = 'Untitled Note', initialContent = ''
     };
     state.notes.unshift(created);
     saveOfflineSnapshot();
-    selectNote(created.id);
+    selectNote(created.id, true);
     setEditorMode('edit');
     el.noteTitleInput.focus();
     el.noteTitleInput.select();
@@ -1765,7 +1820,7 @@ async function createNewNote(initialTitle = 'Untitled Note', initialContent = ''
     state.notes.unshift(created);
   }
   saveOfflineSnapshot();
-  selectNote(created.id);
+  selectNote(created.id, true);
   setEditorMode('edit');
   el.noteTitleInput.focus();
   el.noteTitleInput.select();

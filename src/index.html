@@ -209,6 +209,9 @@
 
     <!-- Main 3-Pane Bento Workspace Canvas -->
     <div class="workspace-layout" id="workspace-layout">
+      <!-- Backdrop overlay when Workspaces sidebar is opened as a drawer on Tablet/Mobile -->
+      <div class="sidebar-drawer-backdrop hidden" id="sidebar-drawer-backdrop"></div>
+
       <!-- PANE 1: Workspaces & Collaborators Source List -->
       <aside class="sidebar bento-pane" id="sidebar">
         <div class="sidebar-top-scroll">
@@ -223,6 +226,9 @@
                 <button class="pill-action-btn primary" id="btn-new-project-modal" title="Create New Shared Workspace" type="button">
                   <span class="material-symbols-outlined">add</span>
                   <span>New</span>
+                </button>
+                <button class="icon-btn sidebar-close-mobile" id="btn-close-sidebar-drawer" title="Close Workspaces Drawer" type="button">
+                  <span class="material-symbols-outlined" style="font-size:16px;">close</span>
                 </button>
               </div>
             </div>
@@ -335,6 +341,11 @@
         <div id="editor-active-container" class="editor-active-container hidden">
           <div class="editor-toolbar">
             <div class="editor-meta">
+              <!-- Mobile / Narrow View Back Button to return to Notes List -->
+              <button type="button" class="btn-tool mobile-back-to-notes" id="btn-mobile-back-notes" title="Back to Notes List">
+                <span class="material-symbols-outlined" style="font-size:15px;">arrow_back</span>
+                <span>Notes</span>
+              </button>
               <span class="sync-status-dot" id="editor-sync-dot"></span>
               <span class="live-status-pill" id="note-save-status">Synced to Cloud</span>
               <span class="meta-sep">•</span>

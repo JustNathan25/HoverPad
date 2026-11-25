@@ -636,7 +636,8 @@ input[type='range'].macos-slider::-webkit-slider-thumb:hover {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .auth-ambient-orb {
@@ -2237,11 +2238,334 @@ body.compact-mode .minipad-bottom-dock {
 .modal-card {
   width: 100%;
   max-width: 420px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
   background: var(--bg-bento-solid);
   border: 1px solid var(--border-bento);
   border-radius: 18px;
   padding: 22px;
   box-shadow: var(--shadow-modal);
+}
+
+/* ===================================================================== */
+/* 6. RESPONSIVE BREAKPOINTS FOR ALL SCREEN SIZES (320px -> 4K)          */
+/* ===================================================================== */
+
+/* Desktop Default Helpers for Mobile-Only Elements */
+.sidebar-close-mobile,
+.mobile-back-to-notes {
+  display: none;
+}
+
+.sidebar-drawer-backdrop {
+  position: fixed;
+  inset: 50px 0 0 0;
+  background: rgba(10, 12, 18, 0.42);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 90;
+  animation: fadeIn 0.15s ease;
+}
+
+/* Breakpoint 1: Ultra-Wide Monitors (>= 1500px) — Expand panes gracefully */
+@media (min-width: 1500px) {
+  .nav-rail {
+    width: 210px;
+  }
+  .sidebar {
+    width: 280px;
+  }
+  .notes-list-pane {
+    width: 380px;
+  }
+  .workspace-layout {
+    gap: 14px;
+    padding: 14px;
+  }
+}
+
+/* Breakpoint 2: Compact Laptops & Split-Screen Desktop (<= 1180px)
+   Collapse Far-Left Library Rail into a sleek 58px Icon Rail */
+@media (max-width: 1180px) {
+  .nav-rail {
+    width: 58px;
+    padding: 10px 6px;
+    align-items: center;
+  }
+  .nav-rail-section-label,
+  .nav-rail-item span:not(.nav-icon),
+  .nav-rail-footer {
+    display: none;
+  }
+  .nav-rail-item {
+    justify-content: center;
+    padding: 9px 0;
+    width: 42px;
+    height: 40px;
+  }
+  .nav-icon {
+    font-size: 19px;
+    margin: 0;
+  }
+  .sidebar {
+    width: 225px;
+  }
+  .notes-list-pane {
+    width: 285px;
+  }
+}
+
+/* Breakpoint 3: Tablet & Half-Screen Windows (<= 960px)
+   Workspaces Sidebar becomes a Slide-Over Drawer so Notes List + Editor have full room */
+@media (max-width: 960px) {
+  .sidebar {
+    position: fixed;
+    top: 58px;
+    bottom: 10px;
+    left: 66px;
+    width: 270px;
+    max-width: calc(100vw - 80px);
+    z-index: 100;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+    transform: translateX(-120%);
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex !important;
+  }
+
+  .sidebar.drawer-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-close-mobile {
+    display: inline-flex;
+  }
+
+  .notes-list-pane {
+    width: 275px;
+  }
+
+  .project-header-info h2 {
+    max-width: 140px;
+  }
+
+  .editor-toolbar {
+    padding: 9px 12px;
+  }
+
+  .color-picker-dots {
+    display: none;
+  }
+}
+
+/* Breakpoint 4: Small Tablet & Narrow Windows (<= 740px)
+   Single-Pane Master/Detail Drill-Down between Notes List and Active Note Editor */
+@media (max-width: 740px) {
+  .workspace-layout {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .notes-list-pane {
+    width: 100%;
+    flex: 1;
+  }
+
+  .project-header-info h2 {
+    max-width: 220px;
+  }
+
+  /* When viewing the notes list on narrow screens, hide editor pane */
+  .workspace-layout:not(.mobile-editor-open) .editor-pane {
+    display: none;
+  }
+
+  /* When a note is opened on narrow screens, hide notes list and show editor full-width */
+  .workspace-layout.mobile-editor-open .notes-list-pane {
+    display: none;
+  }
+
+  .workspace-layout.mobile-editor-open .editor-pane {
+    display: flex;
+    width: 100%;
+  }
+
+  .mobile-back-to-notes {
+    display: inline-flex;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    border-color: var(--border-card-active);
+    font-weight: 600;
+  }
+
+  .last-edited-by,
+  .meta-sep {
+    display: none;
+  }
+
+  #float-note-label,
+  #e2ee-note-text,
+  #pin-note-text {
+    display: none;
+  }
+}
+
+/* Breakpoint 5: Mobile / Phone & Mini Floating Windows (<= 560px)
+   Convert Left Nav Rail into a Bottom Tab Bar */
+@media (max-width: 560px) {
+  .titlebar {
+    height: 46px;
+    min-height: 46px;
+    padding: 0 10px;
+  }
+
+  .titlebar-left {
+    gap: 8px;
+  }
+
+  .titlebar-drag {
+    padding-left: 8px;
+  }
+
+  .brand-title {
+    font-size: 13px;
+  }
+
+  #floating-notes-count-label,
+  #theme-toggle-label {
+    display: none;
+  }
+
+  .workspace-shell {
+    flex-direction: column-reverse;
+  }
+
+  .nav-rail {
+    width: 100%;
+    height: 50px;
+    flex-direction: row;
+    border-right: none;
+    border-top: 1px solid var(--border-subtle);
+    padding: 4px 12px;
+    justify-content: center;
+  }
+
+  .nav-rail-links {
+    flex-direction: row;
+    width: 100%;
+    justify-content: space-around;
+    align-items: center;
+  }
+
+  .sidebar {
+    left: 10px;
+    top: 54px;
+    bottom: 58px;
+    width: calc(100vw - 20px);
+    max-width: 320px;
+  }
+
+  .sidebar-drawer-backdrop {
+    inset: 46px 0 50px 0;
+  }
+
+  .editor-subtabs {
+    flex-wrap: wrap;
+    padding: 6px 12px 8px;
+  }
+
+  .segmented-control {
+    flex: 1;
+  }
+
+  .subtab {
+    flex: 1;
+    justify-content: center;
+    padding: 4px 6px;
+    font-size: 11px;
+  }
+
+  .editor-title-block {
+    padding: 10px 12px 6px;
+  }
+
+  .note-title-input {
+    font-size: 15px;
+  }
+
+  .note-subtitle-meta {
+    font-size: 10px;
+    flex-wrap: wrap;
+  }
+
+  .note-content-textarea,
+  .note-snippets-view {
+    padding: 10px 12px;
+  }
+
+  .modal-overlay {
+    padding: 10px;
+  }
+
+  .modal-card {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .share-code-box {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .inline-input-row {
+    flex-direction: column;
+  }
+
+  .hotkey-grid {
+    grid-template-columns: 1fr;
+    gap: 3px;
+  }
+
+  .hotkey-grid kbd {
+    text-align: left;
+    justify-self: start;
+    margin-bottom: 4px;
+  }
+}
+
+/* Short Viewport Height Responsiveness (<= 660px tall — e.g. 1366x768 laptops or half-height windows) */
+@media (max-height: 660px) {
+  .auth-screen {
+    align-items: flex-start;
+    padding: 12px;
+  }
+
+  .auth-card {
+    padding: 18px 20px;
+    margin: auto 0;
+  }
+
+  .auth-icon-circle {
+    width: 38px;
+    height: 38px;
+    margin-bottom: 8px;
+  }
+
+  .auth-header {
+    margin-bottom: 12px;
+  }
+
+  .auth-tabs {
+    margin-bottom: 12px;
+  }
+
+  .form-group {
+    margin-bottom: 10px;
+  }
+
+  .oauth-divider {
+    margin: 10px 0 8px;
+  }
 }
 
 .modal-header {
