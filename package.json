@@ -1,7 +1,7 @@
 {
   "name": "hoverpad",
   "productName": "HoverPad",
-  "version": "2.7.0",
+  "version": "2.7.1",
   "description": "HoverPad — Real-time Collaborative Floating Notes & Clipboard Workspace for Windows",
   "author": "HoverPad Team",
   "main": "main.js",

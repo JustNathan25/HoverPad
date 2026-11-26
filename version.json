@@ -1,13 +1,13 @@
 {
-  "version": "2.7.0",
-  "releaseDate": "2026-11-26T22:45:00+08:00",
-  "title": "HoverPad v2.7.0 — Live Auto-Updater & Notification Center",
+  "version": "2.7.1",
+  "releaseDate": "2026-11-27T00:46:00+08:00",
+  "title": "HoverPad v2.7.1 — Cloud Guest & Invite Code Workspace Sync Fix",
   "mandatory": false,
   "notes": [
-    "Added Live Over-the-Air (OTA) Auto-Updater synced directly with GitHub (JustNathan25/HoverPad).",
-    "Added Notification Center bell menu in the top bar for release notes, update progress, and workspace activity.",
-    "Cleaned up the note editor toolbar with a single-line layout and 3-dot note options popover menu.",
-    "Added full multi-breakpoint responsive layout across ultra-wide, desktop, tablet, and mobile screens."
+    "Fixed workspace invite code joining for both Guest users and signed-in accounts.",
+    "Upgraded Guest Mode to real-time Cloud Workspaces with valid 8-character invite codes that anyone can join.",
+    "Fixed invite code rotation (regenerate_project_invite_code) in Supabase.",
+    "Deployed official Google Stitch HoverPad website on Vercel."
   ],
   "files": [
     "package.json",
