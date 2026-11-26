@@ -10,7 +10,7 @@ const E2EE_PREFIX = 'E2EE_V1:';
 const OFFLINE_CACHE_KEY = 'hoverpad_offline_cache_v1';
 const OFFLINE_QUEUE_KEY = 'hoverpad_offline_queue_v1';
 const NOTIF_STORAGE_KEY = 'hoverpad_notifications_v1';
-const APP_CURRENT_VERSION = '2.8.0';
+const APP_CURRENT_VERSION = '2.8.1';
 const GITHUB_VERSION_MANIFEST_URL = 'https://raw.githubusercontent.com/JustNathan25/HoverPad/main/version.json';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {

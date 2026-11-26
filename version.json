@@ -1,15 +1,16 @@
 {
-  "version": "2.8.0",
+  "version": "2.8.1",
   "releaseDate": "2026-11-27T01:22:00+08:00",
-  "title": "HoverPad v2.8.0 — Version History, Soft-Delete Trash, Dynamic Variables & 1-Click Invite Links",
+  "title": "HoverPad v2.8.1 — New Frosted-Glass App Logo",
   "mandatory": false,
   "notes": [
-    "Added Note Version History & Soft-Delete Trash with 1-click Restore so accidental edits or deletions are never lost.",
-    "Added Dynamic {{VARIABLE}} Snippet Placeholders that prompt for values before copying.",
-    "Added Category Filter Pills (All, Starred, Encrypted, Trash) and 1-Click Shareable Invite Links (?join=CODE).",
-    "Added Export Note (.md) and Full Workspace Backup (.json) to the 3-dot note menu, plus REPLICA IDENTITY FULL for zero-drop realtime sync."
+    "Brand-new frosted-glass HoverPad logo across the app, website, Windows tray, and installer shortcuts.",
+    "Multi-resolution icon.ico (16-256px) for crisp taskbar and desktop icons."
   ],
   "files": [
+    "assets/icon.ico",
+    "assets/icon.png",
+    "src/icon.png",
     "package.json",
     "main.js",
     "preload.js",
