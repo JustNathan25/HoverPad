@@ -374,6 +374,23 @@
             <input type="text" id="notes-search-input" placeholder="Search notes, snippets, or commands..." />
             <kbd class="search-kbd">⌘K</kbd>
           </div>
+
+          <!-- Category Filter Pills (All, Starred, Encrypted, Trash) -->
+          <div class="notes-filter-pills" id="notes-filter-pills">
+            <button type="button" class="note-filter-pill active" data-note-filter="all">All</button>
+            <button type="button" class="note-filter-pill" data-note-filter="starred">
+              <span class="material-symbols-outlined" style="font-size:12px;">star</span>
+              <span>Starred</span>
+            </button>
+            <button type="button" class="note-filter-pill" data-note-filter="encrypted">
+              <span class="material-symbols-outlined" style="font-size:12px;">lock</span>
+              <span>Encrypted</span>
+            </button>
+            <button type="button" class="note-filter-pill" data-note-filter="trash">
+              <span class="material-symbols-outlined" style="font-size:12px;">delete</span>
+              <span>Trash</span>
+            </button>
+          </div>
         </div>
 
         <div id="notes-cards-container" class="notes-cards-container">
@@ -440,11 +457,31 @@
                     <span id="e2ee-note-text">Encrypt Note (AES-256)</span>
                   </button>
 
+                  <button class="dropdown-item" id="btn-note-history" type="button">
+                    <span class="material-symbols-outlined dropdown-icon">history</span>
+                    <span>Version History</span>
+                  </button>
+
+                  <button class="dropdown-item" id="btn-export-note-md" type="button">
+                    <span class="material-symbols-outlined dropdown-icon">download</span>
+                    <span>Export Note (.md)</span>
+                  </button>
+
+                  <button class="dropdown-item" id="btn-export-workspace-json" type="button">
+                    <span class="material-symbols-outlined dropdown-icon">folder_zip</span>
+                    <span>Backup Workspace (.json)</span>
+                  </button>
+
                   <div class="dropdown-divider"></div>
+
+                  <button class="dropdown-item hidden" id="btn-restore-note" type="button">
+                    <span class="material-symbols-outlined dropdown-icon" style="color:var(--emerald);">restore_from_trash</span>
+                    <span>Restore from Trash</span>
+                  </button>
 
                   <button class="dropdown-item danger" id="btn-delete-note" type="button">
                     <span class="material-symbols-outlined dropdown-icon">delete</span>
-                    <span>Delete Note</span>
+                    <span id="delete-note-text">Move to Trash</span>
                   </button>
                 </div>
               </div>
@@ -563,14 +600,18 @@
             <div class="share-code-label">8-Character Workspace Invite Code</div>
             <div class="share-code-big" id="modal-invite-code-display">--------</div>
           </div>
-          <div style="display:flex;gap:6px;">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
             <button type="button" class="btn-secondary" id="btn-modal-rotate-code" title="Generate a brand-new invite code and invalidate the old one">
               <span class="material-symbols-outlined" style="font-size:15px;">refresh</span>
               <span>Rotate</span>
             </button>
             <button type="button" class="btn-secondary" id="btn-modal-copy-code">
               <span class="material-symbols-outlined" style="font-size:15px;">content_copy</span>
-              <span>Copy</span>
+              <span>Copy Code</span>
+            </button>
+            <button type="button" class="btn-primary" id="btn-modal-copy-invite-link" title="Copy a 1-click invite link that automatically joins this workspace">
+              <span class="material-symbols-outlined" style="font-size:15px;">link</span>
+              <span>Copy 1-Click Link</span>
             </button>
           </div>
         </div>
@@ -682,6 +723,46 @@
         </button>
         <button type="button" class="btn-primary" data-close-modal>Done</button>
       </div>
+    </div>
+
+    <!-- 6. Note Version History Modal -->
+    <div id="modal-note-history" class="modal-card hidden" style="max-width:480px;">
+      <div class="modal-header">
+        <h3>Note Version History</h3>
+        <button class="modal-close" data-close-modal type="button">&times;</button>
+      </div>
+      <p class="modal-hint">HoverPad automatically snapshots versions as you and your teammates edit. Click <strong>Restore</strong> on any snapshot to roll back.</p>
+      <div id="note-history-list" class="note-history-list">
+        <!-- Populated dynamically -->
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" data-close-modal>Close</button>
+      </div>
+    </div>
+
+    <!-- 7. Dynamic Snippet Variable Prompt Modal ({{VARIABLE}}) -->
+    <div id="modal-snippet-vars" class="modal-card hidden" style="max-width:430px;">
+      <div class="modal-header">
+        <h3>Fill Dynamic Snippet Variables</h3>
+        <button class="modal-close" data-close-modal type="button">&times;</button>
+      </div>
+      <form id="form-snippet-vars">
+        <p class="modal-hint">This command contains <code style="color:var(--accent-text);">{{VARIABLE}}</code> placeholders. Fill in values below to copy the ready-to-run command:</p>
+        <div id="snippet-vars-inputs" class="snippet-vars-inputs">
+          <!-- Populated dynamically -->
+        </div>
+        <div class="snippet-vars-preview-box">
+          <div class="share-code-label">Live Command Preview</div>
+          <code id="snippet-vars-preview-code" class="snippet-vars-preview-code"></code>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" data-close-modal>Cancel</button>
+          <button type="submit" class="btn-primary">
+            <span class="material-symbols-outlined" style="font-size:15px;">content_copy</span>
+            <span>Copy Filled Snippet</span>
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 

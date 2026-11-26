@@ -10,7 +10,7 @@ const E2EE_PREFIX = 'E2EE_V1:';
 const OFFLINE_CACHE_KEY = 'hoverpad_offline_cache_v1';
 const OFFLINE_QUEUE_KEY = 'hoverpad_offline_queue_v1';
 const NOTIF_STORAGE_KEY = 'hoverpad_notifications_v1';
-const APP_CURRENT_VERSION = '2.7.2';
+const APP_CURRENT_VERSION = '2.8.0';
 const GITHUB_VERSION_MANIFEST_URL = 'https://raw.githubusercontent.com/JustNathan25/HoverPad/main/version.json';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
@@ -34,7 +34,10 @@ const state = {
   notes: [],
   activeNoteId: null,
   searchQuery: '',
+  noteFilter: 'all', // 'all' | 'starred' | 'encrypted' | 'trash'
   editorSubtab: 'edit', // 'edit' | 'snippets'
+  lastRevisionAtByNote: new Map(), // noteId -> timestamp ms
+  pendingVarSnippet: null, // { lineText, label, isSecret, vars }
   pinnedFloatingNoteIds: new Set(), // Track which individual notes are currently pinned as floating windows on screen
   maskSecrets: localStorage.getItem('hoverpad_mask_secrets') !== 'false',
   autoClearClipboard: localStorage.getItem('hoverpad_autoclear_clip') !== 'false',
@@ -144,7 +147,13 @@ const el = {
   floatNoteIcon: document.getElementById('float-note-icon'),
   floatNoteLabel: document.getElementById('float-note-label'),
   btnCopyEntireNote: document.getElementById('btn-copy-entire-note'),
+  btnNoteHistory: document.getElementById('btn-note-history'),
+  btnExportNoteMd: document.getElementById('btn-export-note-md'),
+  btnExportWorkspaceJson: document.getElementById('btn-export-workspace-json'),
+  btnRestoreNote: document.getElementById('btn-restore-note'),
   btnDeleteNote: document.getElementById('btn-delete-note'),
+  deleteNoteText: document.getElementById('delete-note-text'),
+  notesFilterPills: document.getElementById('notes-filter-pills'),
   noteTitleInput: document.getElementById('note-title-input'),
   noteContentInput: document.getElementById('note-content-input'),
   noteSnippetsView: document.getElementById('note-snippets-view'),
@@ -159,6 +168,12 @@ const el = {
   modalJoinProject: document.getElementById('modal-join-project'),
   modalE2eeLock: document.getElementById('modal-e2ee-lock'),
   modalSettings: document.getElementById('modal-settings'),
+  modalNoteHistory: document.getElementById('modal-note-history'),
+  noteHistoryList: document.getElementById('note-history-list'),
+  modalSnippetVars: document.getElementById('modal-snippet-vars'),
+  formSnippetVars: document.getElementById('form-snippet-vars'),
+  snippetVarsInputs: document.getElementById('snippet-vars-inputs'),
+  snippetVarsPreviewCode: document.getElementById('snippet-vars-preview-code'),
   btnNewProjectModal: document.getElementById('btn-new-project-modal'),
   btnOpenInviteModal: document.getElementById('btn-open-invite-modal'),
   btnJoinProjectModal: document.getElementById('btn-join-project-modal'),
@@ -171,6 +186,7 @@ const el = {
   modalInviteCodeDisplay: document.getElementById('modal-invite-code-display'),
   btnModalRotateCode: document.getElementById('btn-modal-rotate-code'),
   btnModalCopyCode: document.getElementById('btn-modal-copy-code'),
+  btnModalCopyInviteLink: document.getElementById('btn-modal-copy-invite-link'),
   formJoinProject: document.getElementById('form-join-project'),
   joinCodeInput: document.getElementById('join-code-input'),
   formE2eeLock: document.getElementById('form-e2ee-lock'),
@@ -1153,7 +1169,36 @@ async function bootstrapAuthenticatedWorkspace() {
   }
 
   await loadProjects();
+  await checkUrlForJoinInviteCode();
   flushOfflineSyncQueue();
+}
+
+async function checkUrlForJoinInviteCode() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const joinCode = (params.get('join') || params.get('invite') || '').trim().toUpperCase();
+    if (!joinCode) return;
+
+    // Clean the query param from address bar so refresh doesn't re-run
+    const cleanUrl = window.location.pathname + window.location.hash;
+    window.history.replaceState({}, document.title, cleanUrl);
+
+    const { data: joinedProjectId, error } = await supabaseClient.rpc('join_project_by_code', {
+      p_invite_code: joinCode,
+      p_guest_id: isValidUuid(state.user?.id) ? state.user.id : null,
+      p_guest_name: getDisplayName()
+    });
+
+    if (error) {
+      showToast(`Invite link error: ${error.message}`, false);
+      return;
+    }
+
+    showToast(`Joined workspace via 1-Click Invite Link (${joinCode})!`);
+    await loadProjects(joinedProjectId);
+  } catch (_e) {
+    // Ignore
+  }
 }
 
 async function loadProjects(preferredProjectId = null) {
@@ -1444,9 +1489,12 @@ async function loadProjectNotes(projectId) {
 
   renderNotesList();
 
-  if (state.notes.length > 0) {
-    const keepCurrent = state.notes.find((n) => n.id === state.activeNoteId);
-    selectNote(keepCurrent ? keepCurrent.id : state.notes[0].id);
+  const visibleNotes = state.notes.filter((n) =>
+    state.noteFilter === 'trash' ? Boolean(n.is_trashed) : !n.is_trashed
+  );
+  if (visibleNotes.length > 0) {
+    const keepCurrent = visibleNotes.find((n) => n.id === state.activeNoteId);
+    selectNote(keepCurrent ? keepCurrent.id : visibleNotes[0].id);
   } else {
     selectNote(null);
   }
@@ -1459,27 +1507,57 @@ function sortNotesInPlace() {
   });
 }
 
-function renderNotesList() {
+function getFilteredNotes() {
   sortNotesInPlace();
   const q = state.searchQuery.toLowerCase().trim();
-  const filtered = q
-    ? state.notes.filter((n) => {
-        const plain = getEffectiveNotePlaintext(n) || '';
-        return (
-          (n.title || '').toLowerCase().includes(q) ||
-          plain.toLowerCase().includes(q)
-        );
-      })
-    : state.notes;
+  return state.notes.filter((n) => {
+    const isTrashed = Boolean(n.is_trashed);
+    if (state.noteFilter === 'trash') {
+      if (!isTrashed) return false;
+    } else {
+      if (isTrashed) return false;
+      if (state.noteFilter === 'starred' && !n.is_pinned) return false;
+      if (state.noteFilter === 'encrypted' && !isEncryptedPayload(n.content)) return false;
+    }
+    if (!q) return true;
+    const plain = getEffectiveNotePlaintext(n) || '';
+    return (
+      (n.title || '').toLowerCase().includes(q) ||
+      plain.toLowerCase().includes(q)
+    );
+  });
+}
 
-  el.activeProjectSubtitle.textContent = `${state.notes.length} note${state.notes.length === 1 ? '' : 's'} • ${state.members.length || 1} member${state.members.length === 1 ? '' : 's'}`;
+function renderNotesList() {
+  const activeCount = state.notes.filter((n) => !n.is_trashed).length;
+  const filtered = getFilteredNotes();
+
+  el.activeProjectSubtitle.textContent = `${activeCount} note${activeCount === 1 ? '' : 's'} • ${state.members.length || 1} member${state.members.length === 1 ? '' : 's'}`;
   el.notesCardsContainer.innerHTML = '';
+
+  if (filtered.length === 0) {
+    const emptyMsg =
+      state.noteFilter === 'trash'
+        ? 'Trash is empty. Deleted notes appear here so you can restore them anytime.'
+        : state.noteFilter === 'starred'
+          ? 'No starred notes yet. Use the 3-dot menu on any note to Star to Top.'
+          : state.noteFilter === 'encrypted'
+            ? 'No AES-256 encrypted notes yet.'
+            : 'No notes match your search.';
+    el.notesCardsContainer.innerHTML = `
+      <div style="text-align:center;padding:28px 14px;color:var(--text-dim);font-size:12px;">
+        ${emptyMsg}
+      </div>
+    `;
+    return;
+  }
 
   filtered.forEach((note) => {
     const isActive = note.id === state.activeNoteId;
     const isFloatingOnScreen = state.pinnedFloatingNoteIds.has(note.id);
+    const isTrashed = Boolean(note.is_trashed);
     const card = document.createElement('article');
-    card.className = `note-card ${isActive ? 'active' : ''}`;
+    card.className = `note-card ${isActive ? 'active' : ''} ${isTrashed ? 'is-trashed' : ''}`;
     const accentHex = COLOR_ACCENT_MAP[note.color] || '#0071e3';
 
     const isEncrypted = isEncryptedPayload(note.content);
@@ -1602,9 +1680,91 @@ function selectNote(noteId, openMobileEditor = false) {
   if (el.pinNoteIcon) el.pinNoteIcon.classList.toggle('filled', isPinned);
   if (el.pinNoteText) el.pinNoteText.textContent = isPinned ? 'Unstar from Top' : 'Star to Top';
 
+  const isTrashed = Boolean(note.is_trashed);
+  el.btnRestoreNote?.classList.toggle('hidden', !isTrashed);
+  if (el.deleteNoteText) {
+    el.deleteNoteText.textContent = isTrashed ? 'Delete Forever' : 'Move to Trash';
+  }
+
   el.noteUpdatedBy.textContent = note.updated_by_name
     ? `Last edited by ${note.updated_by_name} • ${formatTimeAgo(note.updated_at)}`
     : formatTimeAgo(note.updated_at);
+}
+
+// =====================================================================
+// DYNAMIC {{VARIABLE}} PLACEHOLDER PARSER & SNIPPET RENDERER
+// =====================================================================
+function extractSnippetVariables(lineText) {
+  const regex = /\{\{\s*([A-Za-z0-9_.-]+)\s*\}\}/g;
+  const vars = [];
+  let match;
+  while ((match = regex.exec(lineText)) !== null) {
+    const varName = match[1];
+    if (!vars.includes(varName)) {
+      vars.push(varName);
+    }
+  }
+  return vars;
+}
+
+function openSnippetVariablesPrompt(lineText, label, isSecret, vars) {
+  state.pendingVarSnippet = { lineText, label, isSecret, vars };
+  if (!el.snippetVarsInputs || !el.modalSnippetVars) {
+    copyToClipboard(lineText, label, isSecret);
+    return;
+  }
+
+  el.snippetVarsInputs.innerHTML = '';
+  const valuesMap = {};
+
+  function updatePreview() {
+    let preview = lineText;
+    vars.forEach((v) => {
+      const val = valuesMap[v] || `{{${v}}}`;
+      preview = preview.replace(new RegExp(`\\{\\{\\s*${v}\\s*\\}\\}`, 'g'), val);
+    });
+    if (el.snippetVarsPreviewCode) {
+      el.snippetVarsPreviewCode.textContent = preview;
+    }
+    return preview;
+  }
+
+  vars.forEach((v, idx) => {
+    const savedDefault = localStorage.getItem(`hoverpad_var_${v}`) || '';
+    valuesMap[v] = savedDefault;
+    const group = document.createElement('div');
+    group.className = 'form-group';
+    group.style.marginBottom = '0';
+    group.innerHTML = `
+      <label style="font-family:'JetBrains Mono',monospace;font-size:11px;">{{${escapeHtml(v)}}}</label>
+      <input type="text" data-var-input="${escapeHtml(v)}" value="${escapeHtml(savedDefault)}" placeholder="Enter value for ${escapeHtml(v)}..." required />
+    `;
+    const input = group.querySelector('input');
+    input.addEventListener('input', (e) => {
+      valuesMap[v] = e.target.value;
+      localStorage.setItem(`hoverpad_var_${v}`, e.target.value);
+      updatePreview();
+    });
+    el.snippetVarsInputs.appendChild(group);
+    if (idx === 0) {
+      setTimeout(() => {
+        input.focus();
+        input.select();
+      }, 40);
+    }
+  });
+
+  updatePreview();
+  openModal(el.modalSnippetVars);
+}
+
+function handleSmartSnippetCopy(lineText, label, isSecret = false) {
+  const vars = extractSnippetVariables(lineText);
+  if (vars.length > 0) {
+    openSnippetVariablesPrompt(lineText, label, isSecret, vars);
+  } else {
+    copyToClipboard(lineText, label, isSecret);
+  }
 }
 
 // =====================================================================
@@ -1672,11 +1832,17 @@ function renderSnippetsQuickCopy(content) {
 
     const row = document.createElement('div');
     row.className = 'snippet-line-item';
+    const vars = extractSnippetVariables(lineText);
+    const varBadgeHtml =
+      vars.length > 0
+        ? `<span class="snippet-var-badge" title="Prompts for ${vars.map((v) => `{{${v}}}`).join(', ')} before copying">${vars.length} var${vars.length > 1 ? 's' : ''}</span>`
+        : '';
     row.innerHTML = `
       <div class="snippet-line-left">
         <span class="snippet-line-num" title="Press Alt+${idx + 1} to instant-copy">${numStr}</span>
         <span class="material-symbols-outlined snippet-type-icon">${meta.icon}</span>
         <code class="snippet-line-text ${meta.cssClass}">${escapeHtml(displayStr)}</code>
+        ${varBadgeHtml}
       </div>
       <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
         ${
@@ -1688,7 +1854,7 @@ function renderSnippetsQuickCopy(content) {
         }
         <button type="button" class="note-card-copy-btn">
           <span class="material-symbols-outlined" style="font-size:12px;">content_copy</span>
-          <span>Copy</span>
+          <span>${vars.length > 0 ? 'Fill & Copy' : 'Copy'}</span>
         </button>
       </div>
     `;
@@ -1707,7 +1873,7 @@ function renderSnippetsQuickCopy(content) {
     }
 
     row.addEventListener('click', () => {
-      copyToClipboard(lineText, `Line ${numStr}`, meta.isSecret);
+      handleSmartSnippetCopy(lineText, `Line ${numStr}`, meta.isSecret);
     });
     el.noteSnippetsView.appendChild(row);
   });
@@ -1822,10 +1988,23 @@ async function handleRealtimeNoteEvent(payload) {
         document.activeElement === el.noteTitleInput;
 
       const plaintext = getEffectiveNotePlaintext(newRow);
-      if (!isEditingLocally || newRow.updated_by !== state.user?.id) {
-        el.noteTitleInput.value = newRow.title || '';
+      if (newRow.updated_by !== state.user?.id) {
+        if (document.activeElement !== el.noteTitleInput) {
+          el.noteTitleInput.value = newRow.title || '';
+        }
         if (plaintext !== null) {
-          el.noteContentInput.value = plaintext;
+          if (document.activeElement === el.noteContentInput) {
+            // Preserve cursor position when a teammate edits simultaneously
+            const selStart = el.noteContentInput.selectionStart;
+            const selEnd = el.noteContentInput.selectionEnd;
+            el.noteContentInput.value = plaintext;
+            el.noteContentInput.setSelectionRange(
+              Math.min(selStart, plaintext.length),
+              Math.min(selEnd, plaintext.length)
+            );
+          } else {
+            el.noteContentInput.value = plaintext;
+          }
         }
       }
       el.noteUpdatedBy.textContent = newRow.updated_by_name
@@ -1985,8 +2164,149 @@ function scheduleNoteSave(partialUpdates = {}) {
       el.noteSaveStatus.textContent = 'Cached offline (will retry)';
     } else {
       el.noteSaveStatus.textContent = 'Synced to Cloud';
+      maybeSaveNoteRevisionSnapshot(note);
     }
   }, 260);
+}
+
+async function maybeSaveNoteRevisionSnapshot(note) {
+  if (!note || !isValidUuid(note.id) || !isValidUuid(note.project_id)) return;
+  if (!note.content || !note.content.trim()) return;
+  const now = Date.now();
+  const lastSaved = state.lastRevisionAtByNote.get(note.id) || 0;
+  // Snapshot at most once every 20 seconds per note while actively editing
+  if (now - lastSaved < 20000) return;
+  state.lastRevisionAtByNote.set(note.id, now);
+  try {
+    await supabaseClient.from('note_revisions').insert({
+      note_id: note.id,
+      project_id: note.project_id,
+      title: note.title || 'Untitled Note',
+      content: note.content,
+      saved_by_name: getDisplayName()
+    });
+  } catch (_e) {
+    // Ignore background revision errors
+  }
+}
+
+async function openNoteVersionHistoryModal() {
+  const note = state.notes.find((n) => n.id === state.activeNoteId);
+  if (!note || !el.noteHistoryList) return;
+
+  el.noteHistoryList.innerHTML = `
+    <div style="text-align:center;padding:20px;color:var(--text-dim);font-size:12px;">
+      Loading version history...
+    </div>
+  `;
+  openModal(el.modalNoteHistory);
+
+  const { data: revisions, error } = await supabaseClient
+    .from('note_revisions')
+    .select('*')
+    .eq('note_id', note.id)
+    .order('created_at', { ascending: false })
+    .limit(12);
+
+  if (error || !revisions || revisions.length === 0) {
+    el.noteHistoryList.innerHTML = `
+      <div style="text-align:center;padding:24px 12px;color:var(--text-dim);font-size:12px;">
+        No previous snapshots saved for this note yet. Snapshots are recorded automatically as you edit or before moving a note to Trash.
+      </div>
+    `;
+    return;
+  }
+
+  el.noteHistoryList.innerHTML = '';
+  revisions.forEach((rev) => {
+    const isEnc = isEncryptedPayload(rev.content);
+    const preview = isEnc
+      ? '🔒 Encrypted Snapshot (AES-256)'
+      : (rev.content || '').trim() || '(Empty content)';
+    const item = document.createElement('div');
+    item.className = 'history-item-card';
+    item.innerHTML = `
+      <div class="history-item-top">
+        <div>
+          <div class="history-item-meta">${escapeHtml(rev.title || 'Untitled Note')} • by ${escapeHtml(rev.saved_by_name || 'Collaborator')}</div>
+          <div class="history-item-time">${formatTimeAgo(rev.created_at)} (${new Date(rev.created_at).toLocaleTimeString()})</div>
+        </div>
+        <button type="button" class="btn-secondary btn-sm" data-restore-rev="${rev.id}">
+          <span class="material-symbols-outlined" style="font-size:14px;">restore</span>
+          <span>Restore</span>
+        </button>
+      </div>
+      <div class="history-item-preview">${escapeHtml(preview)}</div>
+    `;
+
+    item.querySelector('[data-restore-rev]')?.addEventListener('click', async () => {
+      note.title = rev.title;
+      note.content = rev.content;
+      el.noteTitleInput.value = rev.title || '';
+      if (!isEncryptedPayload(rev.content)) {
+        state.unlockedNotesPlaintext.delete(note.id);
+        state.unlockedNotesPassphrases.delete(note.id);
+        el.noteContentInput.value = rev.content || '';
+      }
+      closeModals();
+      selectNote(note.id);
+      scheduleNoteSave({ title: rev.title, content: rev.content });
+      showToast('Restored note to selected snapshot!');
+    });
+
+    el.noteHistoryList.appendChild(item);
+  });
+}
+
+function triggerBrowserFileDownload(filename, contentStr, mimeType = 'text/plain;charset=utf-8') {
+  const blob = new Blob([contentStr], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 200);
+}
+
+function exportActiveNoteAsMarkdown() {
+  const note = state.notes.find((n) => n.id === state.activeNoteId);
+  if (!note) return;
+  const plain = getEffectiveNotePlaintext(note);
+  if (plain === null) {
+    showToast('Unlock this encrypted note before exporting to Markdown', false);
+    return;
+  }
+  const safeName = (note.title || 'hoverpad-note')
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'hoverpad-note';
+  const md = `# ${note.title || 'Untitled Note'}\n\n> Exported from HoverPad Workspace • Last updated ${new Date(note.updated_at).toLocaleString()}\n\n\`\`\`\n${plain}\n\`\`\`\n`;
+  triggerBrowserFileDownload(`${safeName}.md`, md, 'text/markdown;charset=utf-8');
+  showToast(`Exported "${note.title}" as Markdown (.md)`);
+}
+
+function exportWorkspaceBackupAsJson() {
+  const currentProject = state.projects.find((p) => p.id === state.activeProjectId);
+  const backup = {
+    exportedAt: new Date().toISOString(),
+    appVersion: state.appVersion,
+    workspace: currentProject || { id: state.activeProjectId, name: 'HoverPad Workspace' },
+    notes: state.notes.filter((n) => !n.is_trashed)
+  };
+  const safeProj = (currentProject?.name || 'hoverpad-workspace')
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'hoverpad-workspace';
+  triggerBrowserFileDownload(
+    `${safeProj}-backup.json`,
+    JSON.stringify(backup, null, 2),
+    'application/json;charset=utf-8'
+  );
+  showToast('Downloaded full Workspace JSON backup');
 }
 
 async function appendClipboardToActiveNote(fromGlobalHotkey = false) {
@@ -2027,7 +2347,9 @@ function openModal(modalEl) {
     el.modalInviteUser,
     el.modalJoinProject,
     el.modalE2eeLock,
-    el.modalSettings
+    el.modalSettings,
+    el.modalNoteHistory,
+    el.modalSnippetVars
   ].forEach((m) => m?.classList.add('hidden'));
   modalEl?.classList.remove('hidden');
 }
@@ -2477,6 +2799,20 @@ function initWorkspaceHandlers() {
     }
   });
 
+  // Category Filter Pills (All, Starred, Encrypted, Trash)
+  document.querySelectorAll('[data-note-filter]').forEach((pill) => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('[data-note-filter]').forEach((p) => p.classList.remove('active'));
+      pill.classList.add('active');
+      state.noteFilter = pill.dataset.noteFilter || 'all';
+      renderNotesList();
+      const filtered = getFilteredNotes();
+      if (!filtered.some((n) => n.id === state.activeNoteId)) {
+        selectNote(filtered[0]?.id || null);
+      }
+    });
+  });
+
   el.noteTitleInput.addEventListener('input', () => scheduleNoteSave());
   el.noteContentInput.addEventListener('input', () => scheduleNoteSave());
 
@@ -2521,10 +2857,77 @@ function initWorkspaceHandlers() {
     copyToClipboard(plain || note.title || '', `"${note.title}"`);
   });
 
+  el.btnNoteHistory?.addEventListener('click', () => {
+    el.noteMoreDropdown?.classList.add('hidden');
+    openNoteVersionHistoryModal();
+  });
+
+  el.btnExportNoteMd?.addEventListener('click', () => {
+    el.noteMoreDropdown?.classList.add('hidden');
+    exportActiveNoteAsMarkdown();
+  });
+
+  el.btnExportWorkspaceJson?.addEventListener('click', () => {
+    el.noteMoreDropdown?.classList.add('hidden');
+    exportWorkspaceBackupAsJson();
+  });
+
+  el.btnRestoreNote?.addEventListener('click', async () => {
+    el.noteMoreDropdown?.classList.add('hidden');
+    const note = state.notes.find((n) => n.id === state.activeNoteId);
+    if (!note) return;
+    note.is_trashed = false;
+    note.trashed_at = null;
+    if (isValidUuid(note.id)) {
+      await supabaseClient
+        .from('notes')
+        .update({ is_trashed: false, trashed_at: null, updated_at: new Date().toISOString() })
+        .eq('id', note.id);
+    }
+    saveOfflineSnapshot();
+    renderNotesList();
+    selectNote(note.id);
+    showToast(`Restored "${note.title}" from Trash`);
+  });
+
   el.btnDeleteNote.addEventListener('click', async () => {
     el.noteMoreDropdown?.classList.add('hidden');
     if (!state.activeNoteId) return;
     const idToDelete = state.activeNoteId;
+    const note = state.notes.find((n) => n.id === idToDelete);
+    if (!note) return;
+
+    // If not yet in Trash, soft-delete into Trash and save a revision snapshot first
+    if (!note.is_trashed) {
+      state.lastRevisionAtByNote.set(note.id, 0);
+      await maybeSaveNoteRevisionSnapshot(note);
+      const nowIso = new Date().toISOString();
+      note.is_trashed = true;
+      note.trashed_at = nowIso;
+      if (isValidUuid(idToDelete)) {
+        const { error } = await supabaseClient
+          .from('notes')
+          .update({ is_trashed: true, trashed_at: nowIso, updated_at: nowIso })
+          .eq('id', idToDelete);
+        if (error) {
+          showToast(`Could not move to Trash: ${error.message}`, false);
+          return;
+        }
+      }
+      if (state.pinnedFloatingNoteIds.has(idToDelete)) {
+        window.hoverpadDesktop?.closeNoteWindow(idToDelete);
+        state.pinnedFloatingNoteIds.delete(idToDelete);
+        updateFloatingNoteUIIndicators();
+      }
+      saveOfflineSnapshot();
+      renderNotesList();
+      const remaining = getFilteredNotes();
+      selectNote(remaining[0]?.id || null);
+      showToast('Moved note to Trash (Restorable from Trash filter)');
+      return;
+    }
+
+    // If already in Trash, permanently delete
     if (isValidUuid(idToDelete)) {
       const { error } = await supabaseClient.from('notes').delete().eq('id', idToDelete);
       if (error) {
@@ -2542,8 +2945,9 @@ function initWorkspaceHandlers() {
     state.unlockedNotesPassphrases.delete(idToDelete);
     saveOfflineSnapshot();
     renderNotesList();
-    selectNote(state.notes[0]?.id || null);
-    showToast('Note deleted');
+    const remaining = getFilteredNotes();
+    selectNote(remaining[0]?.id || null);
+    showToast('Permanently deleted note');
   });
 
   // End-to-End Encryption (E2EE) Lock / Unlock Handlers
@@ -2633,6 +3037,26 @@ function initWorkspaceHandlers() {
     if (code && code !== '--------') {
       copyToClipboard(code, 'Workspace Invite Code');
     }
+  });
+
+  el.btnModalCopyInviteLink?.addEventListener('click', () => {
+    const code = el.modalInviteCodeDisplay.textContent;
+    if (code && code !== '--------') {
+      const shareUrl = `https://hoverpad.vercel.app/src/index.html?join=${encodeURIComponent(code)}`;
+      copyToClipboard(shareUrl, '1-Click Workspace Invite Link');
+    }
+  });
+
+  el.formSnippetVars?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const pending = state.pendingVarSnippet;
+    if (!pending) {
+      closeModals();
+      return;
+    }
+    const filledCommand = el.snippetVarsPreviewCode?.textContent || pending.lineText;
+    closeModals();
+    copyToClipboard(filledCommand, `${pending.label} (with variables)`, pending.isSecret);
   });
 
   el.btnRotateInviteCode?.addEventListener('click', rotateCurrentProjectInviteCode);
@@ -2821,7 +3245,7 @@ function initWorkspaceHandlers() {
       if (lineText) {
         e.preventDefault();
         const meta = classifySnippetLine(lineText);
-        copyToClipboard(lineText, `Line 0${idx + 1}`, meta.isSecret);
+        handleSmartSnippetCopy(lineText, `Line 0${idx + 1}`, meta.isSecret);
       }
     } else if (
       e.key === '/' &&

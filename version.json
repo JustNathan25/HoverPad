@@ -1,12 +1,13 @@
 {
-  "version": "2.7.2",
-  "releaseDate": "2026-11-27T00:52:00+08:00",
-  "title": "HoverPad v2.7.2 — Automatic Update Pop-Up Notification & Cloud Workspace Join",
+  "version": "2.8.0",
+  "releaseDate": "2026-11-27T01:22:00+08:00",
+  "title": "HoverPad v2.8.0 — Version History, Soft-Delete Trash, Dynamic Variables & 1-Click Invite Links",
   "mandatory": false,
   "notes": [
-    "Added a floating Update Pop-Up Notification card whenever a new HoverPad update is available or downloaded.",
-    "One-click 'Update & Reload Now' or 'Later' directly from the pop-up card.",
-    "Enabled seamless 8-character invite code workspace joining for both Guest and signed-in users."
+    "Added Note Version History & Soft-Delete Trash with 1-click Restore so accidental edits or deletions are never lost.",
+    "Added Dynamic {{VARIABLE}} Snippet Placeholders that prompt for values before copying.",
+    "Added Category Filter Pills (All, Starred, Encrypted, Trash) and 1-Click Shareable Invite Links (?join=CODE).",
+    "Added Export Note (.md) and Full Workspace Backup (.json) to the 3-dot note menu, plus REPLICA IDENTITY FULL for zero-drop realtime sync."
   ],
   "files": [
     "package.json",
