@@ -1,4 +1,4 @@
-# =====================================================================
+﻿# =====================================================================
 # HoverPad — Smart-App-Control-Safe Windows Desktop Installer
 # Installs HoverPad to %LOCALAPPDATA%\Programs\HoverPad and creates
 # Desktop & Start Menu shortcuts using Microsoft's signed runtime.
@@ -22,6 +22,9 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 if ($ScriptDir -and (Test-Path (Join-Path $ScriptDir "src\index.html"))) {
   Copy-Item -Path (Join-Path $ScriptDir "src") -Destination $InstallDir -Recurse -Force
   Copy-Item -Path (Join-Path $ScriptDir "assets") -Destination $InstallDir -Recurse -Force
+  if (Test-Path (Join-Path $ScriptDir "version.json")) {
+    Copy-Item -Path (Join-Path $ScriptDir "version.json") -Destination $InstallDir -Force
+  }
 } else {
   Invoke-WebRequest -Uri $RepoZipUrl -OutFile $TempZip -UseBasicParsing
   if (Test-Path $TempExtract) { Remove-Item $TempExtract -Recurse -Force }
@@ -29,6 +32,9 @@ if ($ScriptDir -and (Test-Path (Join-Path $ScriptDir "src\index.html"))) {
   $ExtractedRoot = Join-Path $TempExtract "HoverPad-main"
   Copy-Item -Path (Join-Path $ExtractedRoot "src") -Destination $InstallDir -Recurse -Force
   Copy-Item -Path (Join-Path $ExtractedRoot "assets") -Destination $InstallDir -Recurse -Force
+  if (Test-Path (Join-Path $ExtractedRoot "version.json")) {
+    Copy-Item -Path (Join-Path $ExtractedRoot "version.json") -Destination $InstallDir -Force
+  }
   Remove-Item $TempZip -Force -ErrorAction SilentlyContinue
   Remove-Item $TempExtract -Recurse -Force -ErrorAction SilentlyContinue
 }

@@ -9,6 +9,9 @@ const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_mSFUO2LABk8Rgp-mz9h2qg_6_QENmpQ
 const E2EE_PREFIX = 'E2EE_V1:';
 const OFFLINE_CACHE_KEY = 'hoverpad_offline_cache_v1';
 const OFFLINE_QUEUE_KEY = 'hoverpad_offline_queue_v1';
+const NOTIF_STORAGE_KEY = 'hoverpad_notifications_v1';
+const APP_CURRENT_VERSION = '2.7.0';
+const GITHUB_VERSION_MANIFEST_URL = 'https://raw.githubusercontent.com/JustNathan25/HoverPad/main/version.json';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
@@ -35,6 +38,11 @@ const state = {
   pinnedFloatingNoteIds: new Set(), // Track which individual notes are currently pinned as floating windows on screen
   maskSecrets: localStorage.getItem('hoverpad_mask_secrets') !== 'false',
   autoClearClipboard: localStorage.getItem('hoverpad_autoclear_clip') !== 'false',
+  autoUpdate: localStorage.getItem('hoverpad_auto_update') !== 'false',
+  appVersion: APP_CURRENT_VERSION,
+  pendingUpdateManifest: null,
+  updateReadyToReload: false,
+  notifications: [],
   closeToTray: true,
   launchAtStartup: false,
   revealedSecretLines: new Set(),
@@ -168,12 +176,31 @@ const el = {
   formE2eeLock: document.getElementById('form-e2ee-lock'),
   e2eeSetPassphrase: document.getElementById('e2ee-set-passphrase'),
 
-  // Settings Toggles
+  // Settings Toggles & Notification Center Elements
+  toggleSettingAutoupdate: document.getElementById('toggle-setting-autoupdate'),
   toggleSettingMaskSecrets: document.getElementById('toggle-setting-mask-secrets'),
   toggleSettingAutoclearClip: document.getElementById('toggle-setting-autoclear-clip'),
   toggleSettingCloseTray: document.getElementById('toggle-setting-close-tray'),
   toggleSettingStartup: document.getElementById('toggle-setting-startup'),
   btnQuitHoverpadCompletely: document.getElementById('btn-quit-hoverpad-completely'),
+
+  notifCenterWrap: document.getElementById('notif-center-wrap'),
+  btnNotifBell: document.getElementById('btn-notif-bell'),
+  notifBellIcon: document.getElementById('notif-bell-icon'),
+  notifUnreadBadge: document.getElementById('notif-unread-badge'),
+  notifCenterDropdown: document.getElementById('notif-center-dropdown'),
+  notifCurrentVersion: document.getElementById('notif-current-version'),
+  btnNotifCheckUpdates: document.getElementById('btn-notif-check-updates'),
+  btnNotifClearAll: document.getElementById('btn-notif-clear-all'),
+  toggleNotifAutoupdate: document.getElementById('toggle-notif-autoupdate'),
+  notifAutoupdateStatus: document.getElementById('notif-autoupdate-status'),
+  notifUpdateBanner: document.getElementById('notif-update-banner'),
+  notifUpdateTitle: document.getElementById('notif-update-title'),
+  notifUpdateNotes: document.getElementById('notif-update-notes'),
+  btnNotifApplyUpdate: document.getElementById('btn-notif-apply-update'),
+  btnNotifApplyLabel: document.getElementById('btn-notif-apply-label'),
+  notifFeedList: document.getElementById('notif-feed-list'),
+  navVersionLabel: document.getElementById('nav-version-label'),
 
   toastContainer: document.getElementById('toast-container')
 };
@@ -630,6 +657,7 @@ function setEditorMode(mode) {
 function initWindowControls() {
   applyTheme(state.theme);
   setOnlineStatusIndicator(navigator.onLine);
+  initNotificationCenterAndUpdater();
 
   // Listen for live edits from Web Document Picture-in-Picture floating note windows
   window.addEventListener('message', (e) => {
@@ -670,12 +698,28 @@ function initWindowControls() {
       if (!dState) return;
       state.closeToTray = Boolean(dState.closeToTray);
       state.launchAtStartup = Boolean(dState.launchAtStartup);
+      if (dState.autoUpdate !== undefined) {
+        applyAutoUpdateUI(Boolean(dState.autoUpdate));
+      }
+      if (dState.localVersionManifest?.version) {
+        state.appVersion = dState.localVersionManifest.version;
+        updateVersionLabels();
+      }
       if (el.toggleSettingCloseTray) el.toggleSettingCloseTray.checked = state.closeToTray;
       if (el.toggleSettingStartup) el.toggleSettingStartup.checked = state.launchAtStartup;
       if (Array.isArray(dState.pinnedNoteIds)) {
         dState.pinnedNoteIds.forEach((id) => state.pinnedFloatingNoteIds.add(id));
         updateFloatingNoteUIIndicators();
       }
+    });
+
+    window.hoverpadDesktop.onUpdaterStatus((payload) => {
+      handleUpdaterStatusPayload(payload);
+    });
+
+    window.hoverpadDesktop.onAutoUpdatePrefChanged((enabled) => {
+      applyAutoUpdateUI(Boolean(enabled));
+      showToast(enabled ? 'Automatic app updates enabled' : 'Automatic app updates paused');
     });
 
     // When a floating pinned note window is closed by the user
@@ -1976,11 +2020,359 @@ function closeModals() {
 }
 
 function openSettingsModal() {
+  if (el.toggleSettingAutoupdate) el.toggleSettingAutoupdate.checked = state.autoUpdate;
   if (el.toggleSettingMaskSecrets) el.toggleSettingMaskSecrets.checked = state.maskSecrets;
   if (el.toggleSettingAutoclearClip) el.toggleSettingAutoclearClip.checked = state.autoClearClipboard;
   if (el.toggleSettingCloseTray) el.toggleSettingCloseTray.checked = state.closeToTray;
   if (el.toggleSettingStartup) el.toggleSettingStartup.checked = state.launchAtStartup;
   openModal(el.modalSettings);
+}
+
+// =====================================================================
+// NOTIFICATION CENTER & LIVE GITHUB OVER-THE-AIR AUTO-UPDATER
+// =====================================================================
+function compareSemverClient(vA, vB) {
+  const partsA = String(vA || '0.0.0').replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+  const partsB = String(vB || '0.0.0').replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) {
+    const a = partsA[i] || 0;
+    const b = partsB[i] || 0;
+    if (a > b) return 1;
+    if (a < b) return -1;
+  }
+  return 0;
+}
+
+function updateVersionLabels() {
+  if (el.notifCurrentVersion) el.notifCurrentVersion.textContent = `v${state.appVersion}`;
+  if (el.navVersionLabel) el.navVersionLabel.textContent = `v${state.appVersion} Live`;
+}
+
+function applyAutoUpdateUI(enabled) {
+  state.autoUpdate = Boolean(enabled);
+  localStorage.setItem('hoverpad_auto_update', String(state.autoUpdate));
+  if (el.toggleNotifAutoupdate) el.toggleNotifAutoupdate.checked = state.autoUpdate;
+  if (el.toggleSettingAutoupdate) el.toggleSettingAutoupdate.checked = state.autoUpdate;
+  if (el.notifAutoupdateStatus) {
+    el.notifAutoupdateStatus.textContent = state.autoUpdate
+      ? 'Auto-installs latest GitHub releases'
+      : 'Manual mode — notifies you before updating';
+  }
+}
+
+function loadSavedNotifications() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(NOTIF_STORAGE_KEY) || '[]');
+    if (Array.isArray(raw) && raw.length > 0) {
+      state.notifications = raw;
+      return;
+    }
+  } catch (_e) {
+    // Fallback to default release notification
+  }
+
+  state.notifications = [
+    {
+      id: `release-${APP_CURRENT_VERSION}`,
+      title: `HoverPad v${APP_CURRENT_VERSION} Installed`,
+      icon: 'verified',
+      time: new Date().toISOString(),
+      unread: true,
+      body: 'Live Over-the-Air Auto-Updater and Notification Center are active.',
+      bullets: [
+        'Turn Automatic Updates On or Off anytime from the bell menu or Preferences.',
+        'Cleaned up the note editor toolbar with a 3-dot options popover.',
+        'Responsive layout adapts smoothly from 320px mobile to 4K monitors.'
+      ]
+    }
+  ];
+  saveNotifications();
+}
+
+function saveNotifications() {
+  try {
+    localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(state.notifications.slice(0, 25)));
+  } catch (_e) {
+    // Ignore
+  }
+}
+
+function pushNotification({ id, title, body, bullets = [], icon = 'notifications', unread = true }) {
+  const notifId = id || `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const existingIdx = state.notifications.findIndex((n) => n.id === notifId);
+  const item = {
+    id: notifId,
+    title,
+    body,
+    bullets,
+    icon,
+    time: new Date().toISOString(),
+    unread
+  };
+
+  if (existingIdx !== -1) {
+    state.notifications[existingIdx] = item;
+  } else {
+    state.notifications.unshift(item);
+  }
+  saveNotifications();
+  renderNotificationCenter();
+}
+
+function renderNotificationCenter() {
+  if (!el.notifFeedList) return;
+  const unreadCount = state.notifications.filter((n) => n.unread).length;
+  const hasPendingUpdate = Boolean(state.pendingUpdateManifest);
+
+  if (el.notifUnreadBadge) {
+    const badgeTotal = unreadCount + (hasPendingUpdate ? 1 : 0);
+    el.notifUnreadBadge.classList.toggle('hidden', badgeTotal === 0);
+    el.notifUnreadBadge.classList.toggle('has-update', hasPendingUpdate);
+    el.notifUnreadBadge.textContent = badgeTotal > 9 ? '9+' : String(badgeTotal);
+  }
+
+  // Render Active Update Banner if an update is available or downloaded
+  if (el.notifUpdateBanner) {
+    if (hasPendingUpdate) {
+      const m = state.pendingUpdateManifest;
+      el.notifUpdateBanner.classList.remove('hidden');
+      el.notifUpdateTitle.textContent = state.updateReadyToReload
+        ? `v${m.version} Downloaded & Ready!`
+        : `Update Available: v${m.version}`;
+      if (el.btnNotifApplyLabel) {
+        el.btnNotifApplyLabel.textContent = state.updateReadyToReload
+          ? 'Reload Now to Finish Update'
+          : 'Download & Apply Update Now';
+      }
+      el.notifUpdateNotes.innerHTML = '';
+      (Array.isArray(m.notes) ? m.notes : []).forEach((line) => {
+        const li = document.createElement('li');
+        li.textContent = line;
+        el.notifUpdateNotes.appendChild(li);
+      });
+    } else {
+      el.notifUpdateBanner.classList.add('hidden');
+    }
+  }
+
+  // Render Notification Feed Cards
+  el.notifFeedList.innerHTML = '';
+  if (state.notifications.length === 0) {
+    el.notifFeedList.innerHTML = `
+      <div style="text-align:center;padding:24px 12px;color:var(--text-dim);font-size:11.5px;">
+        No notifications yet. Click <strong>Check Updates</strong> above to check GitHub for new releases.
+      </div>
+    `;
+    return;
+  }
+
+  state.notifications.forEach((n) => {
+    const card = document.createElement('div');
+    card.className = `notif-card ${n.unread ? 'unread' : ''}`;
+    const bulletsHtml =
+      Array.isArray(n.bullets) && n.bullets.length > 0
+        ? `<ul class="notif-card-bullets">${n.bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join('')}</ul>`
+        : '';
+
+    card.innerHTML = `
+      <div class="notif-card-top">
+        <div class="notif-card-title">
+          <span class="material-symbols-outlined" style="font-size:14px;color:var(--accent-text);">${escapeHtml(n.icon || 'notifications')}</span>
+          <span>${escapeHtml(n.title)}</span>
+        </div>
+        <span class="notif-card-time">${formatTimeAgo(n.time)}</span>
+      </div>
+      <div class="notif-card-body">${escapeHtml(n.body || '')}</div>
+      ${bulletsHtml}
+    `;
+
+    card.addEventListener('click', () => {
+      n.unread = false;
+      saveNotifications();
+      renderNotificationCenter();
+    });
+
+    el.notifFeedList.appendChild(card);
+  });
+}
+
+function handleUpdaterStatusPayload(payload) {
+  if (!payload) return;
+  if (payload.localVersion) {
+    state.appVersion = payload.localVersion;
+    updateVersionLabels();
+  }
+
+  if (payload.status === 'downloading' && payload.remoteManifest) {
+    showToast(`Auto-downloading HoverPad v${payload.remoteManifest.version}...`);
+  } else if (payload.status === 'downloaded' && payload.remoteManifest) {
+    const m = payload.remoteManifest;
+    state.pendingUpdateManifest = m;
+    state.updateReadyToReload = true;
+    pushNotification({
+      id: `update-ready-${m.version}`,
+      title: `Update v${m.version} Downloaded Automatically`,
+      icon: 'system_update_alt',
+      body: m.title || `HoverPad v${m.version} has been downloaded over-the-air. Click Reload Now above to activate it.`,
+      bullets: Array.isArray(m.notes) ? m.notes : [],
+      unread: true
+    });
+    showToast(`HoverPad v${m.version} downloaded! Click the bell icon to reload.`);
+  } else if (payload.status === 'available' && payload.remoteManifest) {
+    const m = payload.remoteManifest;
+    state.pendingUpdateManifest = m;
+    state.updateReadyToReload = false;
+    pushNotification({
+      id: `update-avail-${m.version}`,
+      title: `New Update Available: v${m.version}`,
+      icon: 'new_releases',
+      body: m.title || `A new version of HoverPad (v${m.version}) is available on GitHub.`,
+      bullets: Array.isArray(m.notes) ? m.notes : [],
+      unread: true
+    });
+    showToast(`New HoverPad update v${m.version} available in Notification Center!`);
+  } else if (payload.status === 'up-to-date' && payload.manual) {
+    if (payload.remoteManifest) {
+      pushNotification({
+        id: `release-${payload.remoteManifest.version}`,
+        title: `Up to Date (v${state.appVersion})`,
+        icon: 'check_circle',
+        body: payload.remoteManifest.title || 'You are running the latest version of HoverPad from GitHub.',
+        bullets: Array.isArray(payload.remoteManifest.notes) ? payload.remoteManifest.notes : [],
+        unread: false
+      });
+    }
+    showToast(`HoverPad is up to date (v${state.appVersion})`);
+  } else if (payload.status === 'error' && payload.manual) {
+    showToast(`Update check failed: ${payload.error || 'Offline'}`, false);
+  }
+  renderNotificationCenter();
+}
+
+async function triggerUpdateCheck(manual = true) {
+  if (el.btnNotifCheckUpdates) {
+    el.btnNotifCheckUpdates.disabled = true;
+    el.btnNotifCheckUpdates.querySelector('span:last-child').textContent = 'Checking...';
+  }
+  try {
+    if (window.hoverpadDesktop) {
+      await window.hoverpadDesktop.checkForUpdates({ manual });
+    } else {
+      // Browser / Edge App Mode live GitHub version check
+      const res = await fetch(`${GITHUB_VERSION_MANIFEST_URL}?t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const remoteManifest = await res.json();
+      const cmp = compareSemverClient(remoteManifest.version, state.appVersion);
+      if (cmp > 0) {
+        handleUpdaterStatusPayload({
+          status: state.autoUpdate ? 'downloaded' : 'available',
+          hasUpdate: true,
+          localVersion: state.appVersion,
+          remoteManifest,
+          manual
+        });
+      } else {
+        handleUpdaterStatusPayload({
+          status: 'up-to-date',
+          hasUpdate: false,
+          localVersion: state.appVersion,
+          remoteManifest,
+          manual
+        });
+      }
+    }
+  } catch (err) {
+    if (manual) showToast(`Update check error: ${err.message}`, false);
+  } finally {
+    if (el.btnNotifCheckUpdates) {
+      el.btnNotifCheckUpdates.disabled = false;
+      el.btnNotifCheckUpdates.querySelector('span:last-child').textContent = 'Check Updates';
+    }
+  }
+}
+
+function initNotificationCenterAndUpdater() {
+  loadSavedNotifications();
+  applyAutoUpdateUI(state.autoUpdate);
+  updateVersionLabels();
+  renderNotificationCenter();
+
+  // Toggle Notification Center Bell Dropdown
+  el.btnNotifBell?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    el.notifCenterDropdown?.classList.toggle('hidden');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#notif-center-wrap')) {
+      el.notifCenterDropdown?.classList.add('hidden');
+    }
+  });
+
+  // Check for Updates button inside Notification Center
+  el.btnNotifCheckUpdates?.addEventListener('click', () => {
+    triggerUpdateCheck(true);
+  });
+
+  // Clear / Mark all read button
+  el.btnNotifClearAll?.addEventListener('click', () => {
+    state.notifications.forEach((n) => {
+      n.unread = false;
+    });
+    saveNotifications();
+    renderNotificationCenter();
+    showToast('Marked all notifications as read');
+  });
+
+  // Auto-Update toggle switch inside Notification Center & Preferences Modal
+  async function setAutoUpdatePreference(enabled) {
+    applyAutoUpdateUI(enabled);
+    if (window.hoverpadDesktop) {
+      await window.hoverpadDesktop.toggleAutoUpdate(enabled);
+    }
+    showToast(
+      enabled
+        ? 'Automatic Over-the-Air updates enabled'
+        : 'Automatic updates turned off (Manual mode)'
+    );
+    if (enabled && state.pendingUpdateManifest && !state.updateReadyToReload) {
+      if (window.hoverpadDesktop) {
+        await window.hoverpadDesktop.applyUpdateNow();
+      }
+    }
+  }
+
+  el.toggleNotifAutoupdate?.addEventListener('change', (e) => {
+    setAutoUpdatePreference(e.target.checked);
+  });
+
+  el.toggleSettingAutoupdate?.addEventListener('change', (e) => {
+    setAutoUpdatePreference(e.target.checked);
+  });
+
+  // Apply & Reload Update Button
+  el.btnNotifApplyUpdate?.addEventListener('click', async () => {
+    await flushPendingNoteSaveImmediate();
+    if (window.hoverpadDesktop) {
+      if (!state.updateReadyToReload) {
+        el.btnNotifApplyUpdate.disabled = true;
+        if (el.btnNotifApplyLabel) el.btnNotifApplyLabel.textContent = 'Downloading update...';
+        await window.hoverpadDesktop.applyUpdateNow();
+      }
+      state.pendingUpdateManifest = null;
+      state.updateReadyToReload = false;
+      await window.hoverpadDesktop.reloadUpdatedApp();
+    } else {
+      window.location.reload();
+    }
+  });
+
+  // If running in Browser / Edge App mode, check GitHub for updates 3s after launch
+  if (!window.hoverpadDesktop) {
+    setTimeout(() => {
+      triggerUpdateCheck(false);
+    }, 3000);
+  }
 }
 
 function initWorkspaceHandlers() {

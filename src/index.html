@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co;" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://raw.githubusercontent.com https://api.github.com;" />
   <title>HoverPad — Collaborative Floating Notes</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icon.png" />
@@ -57,6 +57,63 @@
         <span class="material-symbols-outlined tb-icon" id="theme-toggle-icon">light_mode</span>
         <span class="tb-btn-text" id="theme-toggle-label">Daylight</span>
       </button>
+
+      <!-- Notification Center & App Updates Bell -->
+      <div class="notif-center-wrap" id="notif-center-wrap">
+        <button class="tb-btn notif-bell-btn" id="btn-notif-bell" title="Notification Center & App Updates" type="button" aria-haspopup="true">
+          <span class="material-symbols-outlined tb-icon" id="notif-bell-icon">notifications</span>
+          <span class="notif-badge" id="notif-unread-badge">1</span>
+        </button>
+
+        <!-- Notification Center Popover Panel -->
+        <div class="notif-center-dropdown hidden" id="notif-center-dropdown">
+          <div class="notif-header">
+            <div class="notif-header-title">
+              <span>Notification Center</span>
+              <span class="notif-version-pill" id="notif-current-version">v2.7.0</span>
+            </div>
+            <div class="notif-header-actions">
+              <button type="button" class="notif-action-link" id="btn-notif-check-updates" title="Check GitHub for new HoverPad updates">
+                <span class="material-symbols-outlined" style="font-size:13px;">sync</span>
+                <span>Check Updates</span>
+              </button>
+              <button type="button" class="notif-action-link" id="btn-notif-clear-all" title="Mark all notifications as read">
+                <span>Clear</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Auto-Update Switch Strip inside Notification Center -->
+          <div class="notif-autoupdate-bar">
+            <div class="notif-autoupdate-info">
+              <span class="material-symbols-outlined" style="font-size:16px;color:var(--accent-text);">system_update_alt</span>
+              <div>
+                <div class="notif-autoupdate-title">Automatic App Updates</div>
+                <div class="notif-autoupdate-sub" id="notif-autoupdate-status">Auto-installs latest GitHub releases</div>
+              </div>
+            </div>
+            <input type="checkbox" id="toggle-notif-autoupdate" class="macos-checkbox" checked title="Turn Automatic Updates On or Off" />
+          </div>
+
+          <!-- Active Update Callout Banner (Shown when update is available or downloaded) -->
+          <div id="notif-update-banner" class="notif-update-banner hidden">
+            <div class="notif-update-top">
+              <span class="material-symbols-outlined" style="font-size:17px;color:var(--emerald-dot);">new_releases</span>
+              <strong id="notif-update-title">New Update Ready!</strong>
+            </div>
+            <ul id="notif-update-notes" class="notif-update-notes"></ul>
+            <button type="button" class="btn-primary btn-sm btn-block" id="btn-notif-apply-update">
+              <span class="material-symbols-outlined" style="font-size:15px;">bolt</span>
+              <span id="btn-notif-apply-label">Apply Update &amp; Reload Now</span>
+            </button>
+          </div>
+
+          <!-- Notifications & Release History Feed -->
+          <div id="notif-feed-list" class="notif-feed-list">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </div>
 
       <div class="tb-divider"></div>
 
@@ -201,9 +258,9 @@
       <div class="nav-rail-footer">
         <span class="nav-version">
           <span class="version-dot"></span>
-          <span>v2.6 Stitch</span>
+          <span id="nav-version-label">v2.7.0 Live</span>
         </span>
-        <span class="nav-fps">E2EE</span>
+        <span class="nav-fps">OTA</span>
       </div>
     </aside>
 
@@ -568,6 +625,14 @@
         <button class="modal-close" data-close-modal type="button">&times;</button>
       </div>
       <div class="settings-list">
+        <label class="setting-row">
+          <div class="setting-info">
+            <div class="setting-title">Automatic Over-the-Air App Updates</div>
+            <div class="setting-desc">Automatically download and apply new HoverPad updates from GitHub without needing to reinstall manually.</div>
+          </div>
+          <input type="checkbox" id="toggle-setting-autoupdate" checked />
+        </label>
+
         <label class="setting-row">
           <div class="setting-info">
             <div class="setting-title">Auto-Mask Secrets in Quick Copy (`••••••`)</div>

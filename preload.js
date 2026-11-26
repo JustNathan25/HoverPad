@@ -5,6 +5,18 @@ contextBridge.exposeInMainWorld('hoverpadDesktop', {
   toggleCloseToTray: (forceState) => ipcRenderer.invoke('window:toggle-close-to-tray', forceState),
   toggleStartup: (forceState) => ipcRenderer.invoke('window:toggle-startup', forceState),
 
+  // Live GitHub Over-the-Air (OTA) Auto-Updater APIs
+  toggleAutoUpdate: (forceState) => ipcRenderer.invoke('updater:toggle-auto', forceState),
+  checkForUpdates: (options) => ipcRenderer.invoke('updater:check', options),
+  applyUpdateNow: () => ipcRenderer.invoke('updater:apply-now'),
+  reloadUpdatedApp: () => ipcRenderer.invoke('updater:reload-app'),
+  onUpdaterStatus: (callback) => {
+    ipcRenderer.on('updater:status', (_event, payload) => callback(payload));
+  },
+  onAutoUpdatePrefChanged: (callback) => {
+    ipcRenderer.on('auto-update-pref-changed', (_event, enabled) => callback(enabled));
+  },
+
   // Floating Pinned Note Windows (Only individual notes can be pinned on screen)
   openNoteWindow: (notePayload) => ipcRenderer.invoke('note-window:open', notePayload),
   closeNoteWindow: (noteId) => ipcRenderer.invoke('note-window:close', noteId),

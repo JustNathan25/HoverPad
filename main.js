@@ -1,16 +1,21 @@
 const { app, BrowserWindow, ipcMain, clipboard, shell, Tray, Menu, nativeImage, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
+
+const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/JustNathan25/HoverPad/main';
+const LOCAL_VERSION_FILE = path.join(__dirname, 'version.json');
 
 let mainWindow = null;
 let tray = null;
 let isQuitting = false;
 let stateSaveTimer = null;
+let updateCheckInterval = null;
 
 // Map of noteId -> BrowserWindow for individual Pinned Floating Notes
 const pinnedNoteWindows = new Map();
 
-// Persisted Desktop Window State (Main App is a normal desktop window; only individual notes float on top)
+// Persisted Desktop Window & Auto-Update State
 const stateFilePath = path.join(app.getPath('userData'), 'hoverpad-window-state.json');
 
 const defaultDesktopState = {
@@ -19,7 +24,8 @@ const defaultDesktopState = {
   x: undefined,
   y: undefined,
   closeToTray: true,
-  launchAtStartup: false
+  launchAtStartup: false,
+  autoUpdate: true
 };
 
 function loadDesktopState() {
@@ -28,12 +34,13 @@ function loadDesktopState() {
       const raw = JSON.parse(fs.readFileSync(stateFilePath, 'utf8'));
       return {
         ...defaultDesktopState,
-        width: Math.max(960, Number(raw.width) || 1180),
-        height: Math.max(640, Number(raw.height) || 760),
+        width: Math.max(340, Number(raw.width) || 1180),
+        height: Math.max(420, Number(raw.height) || 760),
         x: raw.x,
         y: raw.y,
         closeToTray: raw.closeToTray !== undefined ? Boolean(raw.closeToTray) : true,
-        launchAtStartup: Boolean(raw.launchAtStartup)
+        launchAtStartup: Boolean(raw.launchAtStartup),
+        autoUpdate: raw.autoUpdate !== undefined ? Boolean(raw.autoUpdate) : true
       };
     }
   } catch (e) {
@@ -43,6 +50,176 @@ function loadDesktopState() {
 }
 
 let desktopState = loadDesktopState();
+
+function getLocalVersionManifest() {
+  try {
+    if (fs.existsSync(LOCAL_VERSION_FILE)) {
+      return JSON.parse(fs.readFileSync(LOCAL_VERSION_FILE, 'utf8'));
+    }
+  } catch (e) {
+    console.warn('Could not read local version.json:', e);
+  }
+  return {
+    version: app.getVersion() || '2.7.0',
+    title: 'HoverPad Desktop',
+    notes: []
+  };
+}
+
+function compareSemver(vA, vB) {
+  const partsA = String(vA || '0.0.0').replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+  const partsB = String(vB || '0.0.0').replace(/^v/i, '').split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) {
+    const a = partsA[i] || 0;
+    const b = partsB[i] || 0;
+    if (a > b) return 1;
+    if (a < b) return -1;
+  }
+  return 0;
+}
+
+function fetchUrlText(urlStr) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(
+      `${urlStr}${urlStr.includes('?') ? '&' : '?'}t=${Date.now()}`,
+      {
+        headers: {
+          'User-Agent': 'HoverPad-Desktop-Updater',
+          'Cache-Control': 'no-cache'
+        }
+      },
+      (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          fetchUrlText(res.headers.location).then(resolve).catch(reject);
+          return;
+        }
+        if (res.statusCode !== 200) {
+          reject(new Error(`HTTP ${res.statusCode} when fetching ${urlStr}`));
+          return;
+        }
+        let data = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => {
+          data += chunk;
+        });
+        res.on('end', () => resolve(data));
+      }
+    );
+    req.on('error', reject);
+    req.setTimeout(12000, () => {
+      req.destroy(new Error('Update check timed out'));
+    });
+  });
+}
+
+// =====================================================================
+// LIVE OVER-THE-AIR (OTA) GITHUB AUTO-UPDATER
+// Updates app files in-place without triggering Windows Smart App Control
+// =====================================================================
+async function downloadAndApplyOtaUpdate(remoteManifest) {
+  const filesToSync = Array.isArray(remoteManifest?.files) && remoteManifest.files.length > 0
+    ? remoteManifest.files
+    : [
+        'version.json',
+        'src/index.html',
+        'src/styles.css',
+        'src/app.js',
+        'src/note-pad.html',
+        'src/note-pad.js',
+        'src/manifest.json'
+      ];
+
+  const targetDirs = [__dirname];
+  const secondaryInstallDir = path.join(process.env.LOCALAPPDATA || '', 'Programs', 'HoverPad');
+  if (
+    process.env.LOCALAPPDATA &&
+    fs.existsSync(secondaryInstallDir) &&
+    path.resolve(secondaryInstallDir).toLowerCase() !== path.resolve(__dirname).toLowerCase()
+  ) {
+    targetDirs.push(secondaryInstallDir);
+  }
+
+  for (const relFile of filesToSync) {
+    const safeRel = String(relFile).replace(/^(\.\.[/\\])+/, '');
+    const rawContent = await fetchUrlText(`${GITHUB_RAW_BASE}/${safeRel}`);
+    for (const baseDir of targetDirs) {
+      try {
+        const destPath = path.join(baseDir, safeRel);
+        const destFolder = path.dirname(destPath);
+        if (!fs.existsSync(destFolder)) {
+          fs.mkdirSync(destFolder, { recursive: true });
+        }
+        fs.writeFileSync(destPath, rawContent, 'utf8');
+      } catch (writeErr) {
+        console.warn(`Could not write ${safeRel} to ${baseDir}:`, writeErr.message);
+      }
+    }
+  }
+
+  return true;
+}
+
+async function checkForAppUpdates({ manual = false, applyNow = false } = {}) {
+  const localManifest = getLocalVersionManifest();
+  try {
+    const remoteJsonStr = await fetchUrlText(`${GITHUB_RAW_BASE}/version.json`);
+    const remoteManifest = JSON.parse(remoteJsonStr);
+    const cmp = compareSemver(remoteManifest.version, localManifest.version);
+    const hasUpdate = cmp > 0;
+
+    if (hasUpdate && (desktopState.autoUpdate || applyNow)) {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('updater:status', {
+          status: 'downloading',
+          localVersion: localManifest.version,
+          remoteManifest
+        });
+      }
+
+      await downloadAndApplyOtaUpdate(remoteManifest);
+
+      const resultPayload = {
+        status: 'downloaded',
+        hasUpdate: true,
+        autoApplied: true,
+        localVersion: remoteManifest.version,
+        previousVersion: localManifest.version,
+        remoteManifest
+      };
+
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('updater:status', resultPayload);
+      }
+      return resultPayload;
+    }
+
+    const statusPayload = {
+      status: hasUpdate ? 'available' : 'up-to-date',
+      hasUpdate,
+      autoApplied: false,
+      localVersion: localManifest.version,
+      remoteManifest,
+      manual
+    };
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('updater:status', statusPayload);
+    }
+    return statusPayload;
+  } catch (err) {
+    const errPayload = {
+      status: 'error',
+      hasUpdate: false,
+      localVersion: localManifest.version,
+      error: err.message,
+      manual
+    };
+    if (mainWindow && !mainWindow.isDestroyed() && manual) {
+      mainWindow.webContents.send('updater:status', errPayload);
+    }
+    return errPayload;
+  }
+}
 
 function saveDesktopStateImmediate() {
   try {
@@ -134,6 +311,16 @@ function createWindow() {
     mainWindow.show();
     const startupDeepLink = process.argv.find((arg) => typeof arg === 'string' && arg.startsWith('hoverpad://'));
     if (startupDeepLink) handleDeepLinkUrl(startupDeepLink);
+
+    // Check for GitHub OTA updates 3 seconds after startup, and every 15 minutes
+    setTimeout(() => {
+      checkForAppUpdates({ manual: false });
+    }, 3000);
+
+    if (updateCheckInterval) clearInterval(updateCheckInterval);
+    updateCheckInterval = setInterval(() => {
+      checkForAppUpdates({ manual: false });
+    }, 15 * 60 * 1000);
   });
 
   mainWindow.on('move', scheduleSaveDesktopState);
@@ -170,7 +357,6 @@ function openOrFocusPinnedNoteWindow(notePayload) {
     pinnedNoteWindows.delete(noteId);
   }
 
-  // Cascade multiple pinned notes slightly so they don't stack identically
   const offset = (pinnedNoteWindows.size % 5) * 26;
 
   const noteWin = new BrowserWindow({
@@ -194,7 +380,6 @@ function openOrFocusPinnedNoteWindow(notePayload) {
     }
   });
 
-  // Keep this floating note window pinned over browser tabs & desktop apps
   noteWin.setAlwaysOnTop(true, 'screen-saver');
   noteWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
@@ -274,10 +459,23 @@ function updateTrayMenu() {
       }
     },
     {
-      label: 'Quick-Paste Clipboard to Active Note (Ctrl+Shift+V)',
+      label: 'Check for App Updates Now',
       click: () => {
         if (mainWindow) {
-          mainWindow.webContents.send('global-quick-paste');
+          mainWindow.show();
+          mainWindow.focus();
+        }
+        checkForAppUpdates({ manual: true });
+      }
+    },
+    {
+      label: desktopState.autoUpdate ? '✓ Auto-Update Enabled' : 'Enable Auto-Update',
+      click: () => {
+        desktopState.autoUpdate = !desktopState.autoUpdate;
+        saveDesktopStateImmediate();
+        updateTrayMenu();
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('auto-update-pref-changed', desktopState.autoUpdate);
         }
       }
     },
@@ -327,14 +525,12 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
 
-  // Global shortcut Ctrl+Shift+P: Float / Pin the active note onto screen
   globalShortcut.register('CommandOrControl+Shift+P', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('global-toggle-active-note-pin');
     }
   });
 
-  // Global shortcut Ctrl+Shift+V: Quick-paste current Windows clipboard into active HoverPad note
   globalShortcut.register('CommandOrControl+Shift+V', () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('global-quick-paste');
@@ -344,6 +540,7 @@ app.whenReady().then(() => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  if (updateCheckInterval) clearInterval(updateCheckInterval);
   saveDesktopStateImmediate();
   for (const [, win] of pinnedNoteWindows) {
     if (!win.isDestroyed()) win.destroy();
@@ -365,6 +562,7 @@ app.on('window-all-closed', () => {
 ipcMain.handle('window:get-desktop-state', () => {
   return {
     ...desktopState,
+    localVersionManifest: getLocalVersionManifest(),
     pinnedNoteIds: Array.from(pinnedNoteWindows.keys())
   };
 });
@@ -378,6 +576,34 @@ ipcMain.handle('window:toggle-close-to-tray', (_event, forceState) => {
 
 ipcMain.handle('window:toggle-startup', (_event, forceState) => {
   return toggleLaunchAtStartup(forceState);
+});
+
+// Auto-Updater IPC Handlers
+ipcMain.handle('updater:toggle-auto', (_event, forceState) => {
+  desktopState.autoUpdate = typeof forceState === 'boolean' ? forceState : !desktopState.autoUpdate;
+  saveDesktopStateImmediate();
+  updateTrayMenu();
+  return desktopState.autoUpdate;
+});
+
+ipcMain.handle('updater:check', (_event, options) => {
+  return checkForAppUpdates({ manual: Boolean(options?.manual), applyNow: Boolean(options?.applyNow) });
+});
+
+ipcMain.handle('updater:apply-now', () => {
+  return checkForAppUpdates({ manual: true, applyNow: true });
+});
+
+ipcMain.handle('updater:reload-app', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.reloadIgnoringCache();
+  }
+  for (const [, win] of pinnedNoteWindows) {
+    if (!win.isDestroyed()) {
+      win.webContents.reloadIgnoringCache();
+    }
+  }
+  return true;
 });
 
 // Floating Note Window IPC Handlers

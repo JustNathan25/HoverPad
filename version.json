@@ -1,0 +1,24 @@
+{
+  "version": "2.7.0",
+  "releaseDate": "2026-11-26T22:45:00+08:00",
+  "title": "HoverPad v2.7.0 — Live Auto-Updater & Notification Center",
+  "mandatory": false,
+  "notes": [
+    "Added Live Over-the-Air (OTA) Auto-Updater synced directly with GitHub (JustNathan25/HoverPad).",
+    "Added Notification Center bell menu in the top bar for release notes, update progress, and workspace activity.",
+    "Cleaned up the note editor toolbar with a single-line layout and 3-dot note options popover menu.",
+    "Added full multi-breakpoint responsive layout across ultra-wide, desktop, tablet, and mobile screens."
+  ],
+  "files": [
+    "package.json",
+    "main.js",
+    "preload.js",
+    "version.json",
+    "src/index.html",
+    "src/styles.css",
+    "src/app.js",
+    "src/note-pad.html",
+    "src/note-pad.js",
+    "src/manifest.json"
+  ]
+}
