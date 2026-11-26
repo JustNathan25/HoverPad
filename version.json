@@ -1,13 +1,12 @@
 {
-  "version": "2.7.1",
-  "releaseDate": "2026-11-27T00:46:00+08:00",
-  "title": "HoverPad v2.7.1 — Cloud Guest & Invite Code Workspace Sync Fix",
+  "version": "2.7.2",
+  "releaseDate": "2026-11-27T00:52:00+08:00",
+  "title": "HoverPad v2.7.2 — Automatic Update Pop-Up Notification & Cloud Workspace Join",
   "mandatory": false,
   "notes": [
-    "Fixed workspace invite code joining for both Guest users and signed-in accounts.",
-    "Upgraded Guest Mode to real-time Cloud Workspaces with valid 8-character invite codes that anyone can join.",
-    "Fixed invite code rotation (regenerate_project_invite_code) in Supabase.",
-    "Deployed official Google Stitch HoverPad website on Vercel."
+    "Added a floating Update Pop-Up Notification card whenever a new HoverPad update is available or downloaded.",
+    "One-click 'Update & Reload Now' or 'Later' directly from the pop-up card.",
+    "Enabled seamless 8-character invite code workspace joining for both Guest and signed-in users."
   ],
   "files": [
     "package.json",

@@ -2974,6 +2974,147 @@ body.compact-mode .minipad-bottom-dock {
   border-color: var(--emerald-dot);
 }
 
+/* ===================================================================== */
+/* FLOATING UPDATE POP-UP NOTIFICATION CARD                              */
+/* ===================================================================== */
+.update-popup-card {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 350px;
+  max-width: calc(100vw - 28px);
+  background: var(--bg-bento-solid);
+  border: 1.5px solid var(--accent);
+  border-radius: 16px;
+  padding: 15px 16px;
+  z-index: 2100;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35), 0 0 0 4px var(--accent-soft);
+  animation: updatePopupSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes updatePopupSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.update-popup-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.update-popup-badge-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.update-popup-icon-box {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0071e3, #3b82f6);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 113, 227, 0.35);
+}
+
+.update-popup-icon-box .material-symbols-outlined {
+  font-size: 19px;
+}
+
+.update-popup-eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+  margin-bottom: 1px;
+}
+
+.update-popup-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+  line-height: 1.25;
+}
+
+.update-popup-close {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+
+.update-popup-close:hover {
+  color: var(--text-main);
+  background: var(--bg-surface-subtle);
+}
+
+.update-popup-subtitle {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin: 0 0 8px 0;
+  line-height: 1.45;
+}
+
+.update-popup-notes {
+  margin: 0 0 12px 0;
+  padding: 8px 10px 8px 24px;
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  max-height: 115px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.update-popup-notes li {
+  line-height: 1.4;
+}
+
+.update-popup-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.update-popup-cta {
+  padding: 6px 12px;
+}
+
+@media (max-width: 560px) {
+  .update-popup-card {
+    left: 12px;
+    right: 12px;
+    bottom: 60px;
+    width: auto;
+    max-width: none;
+  }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

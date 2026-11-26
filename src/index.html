@@ -685,6 +685,40 @@
     </div>
   </div>
 
+  <!-- ===================================================================== -->
+  <!-- FLOATING UPDATE POP-UP NOTIFICATION CARD                              -->
+  <!-- ===================================================================== -->
+  <div id="update-popup-card" class="update-popup-card hidden" role="dialog" aria-labelledby="update-popup-title">
+    <div class="update-popup-header">
+      <div class="update-popup-badge-wrap">
+        <div class="update-popup-icon-box">
+          <span class="material-symbols-outlined" id="update-popup-icon">system_update_alt</span>
+        </div>
+        <div>
+          <div class="update-popup-eyebrow" id="update-popup-eyebrow">NEW UPDATE AVAILABLE</div>
+          <h4 class="update-popup-title" id="update-popup-title">HoverPad v2.7.2 is Ready</h4>
+        </div>
+      </div>
+      <button type="button" class="update-popup-close" id="btn-update-popup-dismiss" title="Dismiss for now">&times;</button>
+    </div>
+
+    <p class="update-popup-subtitle" id="update-popup-subtitle">
+      A new Over-the-Air update has been published on GitHub.
+    </p>
+
+    <ul class="update-popup-notes" id="update-popup-notes">
+      <!-- Populated dynamically from version.json notes -->
+    </ul>
+
+    <div class="update-popup-footer">
+      <button type="button" class="btn-secondary btn-sm" id="btn-update-popup-later">Later</button>
+      <button type="button" class="btn-primary btn-sm update-popup-cta" id="btn-update-popup-apply">
+        <span class="material-symbols-outlined" style="font-size:15px;">bolt</span>
+        <span id="btn-update-popup-apply-label">Update &amp; Reload Now</span>
+      </button>
+    </div>
+  </div>
+
   <!-- Load Bundled Supabase JS SDK (works in both Electron & GitHub Pages Web/PWA) and App Controller -->
   <script src="vendor-supabase.js"></script>
   <script src="app.js"></script>

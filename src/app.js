@@ -10,7 +10,7 @@ const E2EE_PREFIX = 'E2EE_V1:';
 const OFFLINE_CACHE_KEY = 'hoverpad_offline_cache_v1';
 const OFFLINE_QUEUE_KEY = 'hoverpad_offline_queue_v1';
 const NOTIF_STORAGE_KEY = 'hoverpad_notifications_v1';
-const APP_CURRENT_VERSION = '2.7.1';
+const APP_CURRENT_VERSION = '2.7.2';
 const GITHUB_VERSION_MANIFEST_URL = 'https://raw.githubusercontent.com/JustNathan25/HoverPad/main/version.json';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
@@ -201,6 +201,18 @@ const el = {
   btnNotifApplyLabel: document.getElementById('btn-notif-apply-label'),
   notifFeedList: document.getElementById('notif-feed-list'),
   navVersionLabel: document.getElementById('nav-version-label'),
+
+  // Update Pop-Up Card Elements
+  updatePopupCard: document.getElementById('update-popup-card'),
+  updatePopupIcon: document.getElementById('update-popup-icon'),
+  updatePopupEyebrow: document.getElementById('update-popup-eyebrow'),
+  updatePopupTitle: document.getElementById('update-popup-title'),
+  updatePopupSubtitle: document.getElementById('update-popup-subtitle'),
+  updatePopupNotes: document.getElementById('update-popup-notes'),
+  btnUpdatePopupDismiss: document.getElementById('btn-update-popup-dismiss'),
+  btnUpdatePopupLater: document.getElementById('btn-update-popup-later'),
+  btnUpdatePopupApply: document.getElementById('btn-update-popup-apply'),
+  btnUpdatePopupApplyLabel: document.getElementById('btn-update-popup-apply-label'),
 
   toastContainer: document.getElementById('toast-container')
 };
@@ -2201,6 +2213,68 @@ function renderNotificationCenter() {
   });
 }
 
+function showUpdatePopupModal(manifest, isDownloaded = false) {
+  if (!el.updatePopupCard || !manifest) return;
+  if (el.updatePopupEyebrow) {
+    el.updatePopupEyebrow.textContent = isDownloaded
+      ? 'UPDATE DOWNLOADED & READY'
+      : 'NEW UPDATE AVAILABLE';
+  }
+  if (el.updatePopupIcon) {
+    el.updatePopupIcon.textContent = isDownloaded ? 'system_update_alt' : 'new_releases';
+  }
+  if (el.updatePopupTitle) {
+    el.updatePopupTitle.textContent = `HoverPad v${manifest.version} is Ready!`;
+  }
+  if (el.updatePopupSubtitle) {
+    el.updatePopupSubtitle.textContent =
+      manifest.title ||
+      (isDownloaded
+        ? `HoverPad v${manifest.version} was downloaded automatically. Reload to apply the latest changes.`
+        : `A new HoverPad release (v${manifest.version}) is available on GitHub.`);
+  }
+  if (el.btnUpdatePopupApplyLabel) {
+    el.btnUpdatePopupApplyLabel.textContent = isDownloaded
+      ? 'Reload Now to Update'
+      : 'Download & Update Now';
+  }
+  if (el.updatePopupNotes) {
+    el.updatePopupNotes.innerHTML = '';
+    const notesList = Array.isArray(manifest.notes) ? manifest.notes : [];
+    notesList.forEach((line) => {
+      const li = document.createElement('li');
+      li.textContent = line;
+      el.updatePopupNotes.appendChild(li);
+    });
+    el.updatePopupNotes.classList.toggle('hidden', notesList.length === 0);
+  }
+  el.updatePopupCard.classList.remove('hidden');
+}
+
+function hideUpdatePopupModal() {
+  el.updatePopupCard?.classList.add('hidden');
+}
+
+async function applyPendingUpdateAndReload() {
+  await flushPendingNoteSaveImmediate();
+  if (window.hoverpadDesktop) {
+    if (!state.updateReadyToReload) {
+      if (el.btnNotifApplyUpdate) el.btnNotifApplyUpdate.disabled = true;
+      if (el.btnUpdatePopupApply) el.btnUpdatePopupApply.disabled = true;
+      if (el.btnNotifApplyLabel) el.btnNotifApplyLabel.textContent = 'Downloading update...';
+      if (el.btnUpdatePopupApplyLabel) el.btnUpdatePopupApplyLabel.textContent = 'Downloading...';
+      await window.hoverpadDesktop.applyUpdateNow();
+    }
+    state.pendingUpdateManifest = null;
+    state.updateReadyToReload = false;
+    hideUpdatePopupModal();
+    await window.hoverpadDesktop.reloadUpdatedApp();
+  } else {
+    hideUpdatePopupModal();
+    window.location.reload();
+  }
+}
+
 function handleUpdaterStatusPayload(payload) {
   if (!payload) return;
   if (payload.localVersion) {
@@ -2222,7 +2296,7 @@ function handleUpdaterStatusPayload(payload) {
       bullets: Array.isArray(m.notes) ? m.notes : [],
       unread: true
     });
-    showToast(`HoverPad v${m.version} downloaded! Click the bell icon to reload.`);
+    showUpdatePopupModal(m, true);
   } else if (payload.status === 'available' && payload.remoteManifest) {
     const m = payload.remoteManifest;
     state.pendingUpdateManifest = m;
@@ -2235,7 +2309,7 @@ function handleUpdaterStatusPayload(payload) {
       bullets: Array.isArray(m.notes) ? m.notes : [],
       unread: true
     });
-    showToast(`New HoverPad update v${m.version} available in Notification Center!`);
+    showUpdatePopupModal(m, false);
   } else if (payload.status === 'up-to-date' && payload.manual) {
     if (payload.remoteManifest) {
       pushNotification({
@@ -2355,28 +2429,20 @@ function initNotificationCenterAndUpdater() {
     setAutoUpdatePreference(e.target.checked);
   });
 
-  // Apply & Reload Update Button
-  el.btnNotifApplyUpdate?.addEventListener('click', async () => {
-    await flushPendingNoteSaveImmediate();
-    if (window.hoverpadDesktop) {
-      if (!state.updateReadyToReload) {
-        el.btnNotifApplyUpdate.disabled = true;
-        if (el.btnNotifApplyLabel) el.btnNotifApplyLabel.textContent = 'Downloading update...';
-        await window.hoverpadDesktop.applyUpdateNow();
-      }
-      state.pendingUpdateManifest = null;
-      state.updateReadyToReload = false;
-      await window.hoverpadDesktop.reloadUpdatedApp();
-    } else {
-      window.location.reload();
-    }
-  });
+  // Apply & Reload Update Button (Notification Center & Floating Pop-Up Card)
+  el.btnNotifApplyUpdate?.addEventListener('click', applyPendingUpdateAndReload);
+  el.btnUpdatePopupApply?.addEventListener('click', applyPendingUpdateAndReload);
+  el.btnUpdatePopupDismiss?.addEventListener('click', hideUpdatePopupModal);
+  el.btnUpdatePopupLater?.addEventListener('click', hideUpdatePopupModal);
 
-  // If running in Browser / Edge App mode, check GitHub for updates 3s after launch
+  // If running in Browser / Edge App mode, check GitHub for updates 3s after launch and every 5 minutes
   if (!window.hoverpadDesktop) {
     setTimeout(() => {
       triggerUpdateCheck(false);
     }, 3000);
+    setInterval(() => {
+      triggerUpdateCheck(false);
+    }, 5 * 60 * 1000);
   }
 }
 
