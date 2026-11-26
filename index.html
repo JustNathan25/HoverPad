@@ -1,12 +1,1760 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="dark scroll-smooth" lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="refresh" content="0; url=src/index.html" />
-  <title>HoverPad — Collaborative Floating Notes</title>
-  <script>window.location.replace('src/index.html');</script>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+  <title>HoverPad — Zero-Focus Desktop HUD</title>
+  <link rel="icon" href="assets/icon.ico" />
+  <link href="https://fonts.googleapis.com" rel="preconnect" />
+  <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=Poppins:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "tertiary-fixed-dim": "#c2c1ff",
+            "surface-bright": "#38393d",
+            "primary-fixed-dim": "#aac7ff",
+            "surface-variant": "#343538",
+            "surface-container-lowest": "#0d0e11",
+            "secondary-container": "#09bf49",
+            "surface": "#121316",
+            "secondary": "#47e266",
+            "outline-variant": "#414754",
+            "primary": "#aac7ff",
+            "secondary-fixed": "#6cff82",
+            "tertiary-container": "#8382ff",
+            "surface-tint": "#aac7ff",
+            "surface-container": "#1f1f23",
+            "on-tertiary-fixed": "#0c006b",
+            "tertiary": "#c2c1ff",
+            "primary-container": "#3e90ff",
+            "on-tertiary": "#1800a7",
+            "outline": "#8b91a0",
+            "surface-dim": "#121316",
+            "inverse-surface": "#e3e2e6",
+            "tertiary-fixed": "#e2dfff",
+            "on-error-container": "#ffdad6",
+            "on-primary-fixed-variant": "#00468d",
+            "on-tertiary-fixed-variant": "#332dbc",
+            "error": "#ffb4ab",
+            "inverse-on-surface": "#2f3034",
+            "on-primary-fixed": "#001b3e",
+            "on-secondary-fixed-variant": "#00531a",
+            "surface-container-highest": "#343538",
+            "error-container": "#93000a",
+            "surface-container-high": "#292a2d",
+            "secondary-fixed-dim": "#47e266",
+            "on-tertiary-container": "#140094",
+            "on-secondary": "#003910",
+            "on-background": "#e3e2e6",
+            "primary-fixed": "#d6e3ff",
+            "on-surface": "#e3e2e6",
+            "on-error": "#690005",
+            "on-secondary-fixed": "#002106",
+            "on-primary-container": "#002957",
+            "background": "#121316",
+            "on-primary": "#003064",
+            "inverse-primary": "#005db8",
+            "surface-container-low": "#1b1b1f",
+            "on-surface-variant": "#c0c6d6",
+            "on-secondary-container": "#004615"
+          },
+          fontFamily: {
+            "sans": ["Poppins", "Plus Jakarta Sans", "sans-serif"],
+            "mono": ["JetBrains Mono", "monospace"]
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    @layer base {
+      html, body {
+        margin: 0;
+        padding: 0;
+        background-color: #121316;
+        color: #e3e2e6;
+        font-family: 'Poppins', sans-serif;
+        scroll-behavior: smooth;
+      }
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #121316; }
+    ::-webkit-scrollbar-thumb { background: #292a2d; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #414754; }
+
+    .mica-surface {
+      background: rgba(26, 27, 31, 0.78);
+      backdrop-filter: blur(48px) saturate(160%);
+      -webkit-backdrop-filter: blur(48px) saturate(160%);
+    }
+    .acrylic-surface {
+      background: rgba(35, 36, 42, 0.58);
+      backdrop-filter: blur(28px) saturate(210%);
+      -webkit-backdrop-filter: blur(28px) saturate(210%);
+    }
+    .grid-bg {
+      background-image:
+        linear-gradient(to right, rgba(255, 255, 255, 0.032) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.032) 1px, transparent 1px);
+      background-size: 44px 44px;
+    }
+    .blueprint-grid {
+      background-image:
+        radial-gradient(circle at center, rgba(170, 199, 255, 0.09) 1px, transparent 1px),
+        linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 24px 24px, 72px 72px, 72px 72px;
+    }
+    @keyframes glyphPulse {
+      0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 0 35px -5px rgba(10, 132, 255, 0.35), inset 0 0 15px rgba(0, 242, 254, 0.15);
+      }
+      50% {
+        transform: scale(1.03);
+        box-shadow: 0 0 50px 2px rgba(10, 132, 255, 0.5), inset 0 0 25px rgba(0, 242, 254, 0.3);
+      }
+    }
+    @keyframes lineShimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(200%); }
+    }
+    @keyframes terminalCursor {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0; }
+    }
+    .cursor-blink {
+      animation: terminalCursor 1s infinite;
+    }
+    .glyph-anim {
+      animation: glyphPulse 3s ease-in-out infinite;
+    }
+    .shimmer-anim {
+      animation: lineShimmer 1.6s infinite linear;
+    }
+    .app-entering {
+      transform: scale(0.985);
+      filter: blur(8px);
+      opacity: 0.35;
+      transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), filter 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s ease-out;
+    }
+    .app-settled {
+      transform: scale(1);
+      filter: blur(0px);
+      opacity: 1;
+    }
+    .tap-pop {
+      animation: pop 0.22s ease-out;
+    }
+    @keyframes pop {
+      0% { transform: scale(0.96); }
+      50% { transform: scale(1.02); }
+      100% { transform: scale(1); }
+    }
+    .reveal-item {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .reveal-item.is-revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
 </head>
-<body>
-  <p>Redirecting to <a href="src/index.html">HoverPad Workspace</a>...</p>
+<body class="min-h-screen bg-background text-on-surface selection:bg-primary-container selection:text-on-primary overflow-x-hidden antialiased">
+  <!-- =========================================================================
+       1. DESKTOP MICA BOOT LOADER (No status dot, clean typography)
+       ========================================================================= -->
+  <div class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#0d0e12]/95 backdrop-blur-[60px] transition-all duration-500 ease-out select-none cursor-pointer" id="boot-overlay" title="Click or press Space to launch instantly">
+    <div class="absolute w-[320px] sm:w-[500px] h-[320px] sm:h-[500px] rounded-full bg-gradient-to-tr from-[#0a84ff]/15 via-[#00f2fe]/10 to-transparent blur-[120px] pointer-events-none"></div>
+    <div class="relative z-10 flex flex-col items-center w-full max-w-sm px-6 text-center">
+      <div class="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl mica-surface border border-white/20 flex items-center justify-center glyph-anim mb-6 transition-all duration-300">
+        <div class="absolute -inset-1 rounded-[22px] bg-gradient-to-br from-[#0a84ff]/35 to-[#00f2fe]/25 blur-sm -z-10"></div>
+        <span class="material-symbols-outlined text-transparent bg-clip-text bg-gradient-to-br from-[#d6e3ff] via-[#8382ff] to-[#00f2fe] text-3xl sm:text-4xl drop-shadow-[0_2px_10px_rgba(10,132,255,0.5)]">layers</span>
+      </div>
+      <div class="flex items-center gap-2 mb-1.5">
+        <span class="text-sm font-semibold tracking-tight text-white/95">HoverPad Daemon</span>
+        <span class="font-mono text-[10px] px-1.5 py-0.5 rounded-md bg-white/10 text-primary border border-white/10 uppercase tracking-wider font-medium">v2.7</span>
+      </div>
+      <div class="h-6 flex items-center justify-center overflow-hidden w-full mb-4">
+        <span class="font-mono text-[11px] text-on-surface-variant transition-all duration-200 ease-out inline-block truncate" id="boot-status">Connecting to Mica Subsystem...</span>
+      </div>
+      <div class="relative w-full h-[2px] rounded-full bg-white/[0.08] overflow-hidden mb-3">
+        <div class="absolute inset-0 bg-gradient-to-r from-[#0a84ff] to-[#00f2fe] opacity-30 blur-[2px]"></div>
+        <div class="relative h-full w-0 rounded-full bg-gradient-to-r from-[#0a84ff] via-[#70b8ff] to-[#00f2fe] shadow-[0_0_12px_rgba(0,242,254,0.85)] transition-all duration-75" id="boot-bar">
+          <div class="absolute inset-0 w-24 bg-gradient-to-r from-transparent via-white/80 to-transparent shimmer-anim"></div>
+        </div>
+      </div>
+      <div class="flex items-center justify-between w-full font-mono text-[10px] text-outline">
+        <span class="tracking-wide text-outline/80 uppercase">IPC PIPE ONLINE</span>
+        <span class="text-primary font-semibold tracking-wider" id="boot-percent">0%</span>
+      </div>
+      <div class="mt-8 flex items-center gap-2 font-mono text-[11px] text-outline/70 hover:text-on-surface transition-colors" id="skip-boot-btn">
+        <span>Press Space or click to launch</span>
+        <kbd class="px-1.5 py-0.5 rounded bg-surface-container/90 border border-white/10 text-[10px] text-on-surface-variant">Esc</kbd>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       GLOBAL TOAST FEEDBACK
+       ========================================================================= -->
+  <div class="fixed top-5 right-5 sm:top-6 sm:right-6 z-[95] pointer-events-none opacity-0 -translate-y-3 transition-all duration-200 flex items-center gap-2.5 px-4 py-2.5 rounded-xl mica-surface border border-white/15 shadow-[0_16px_40px_rgba(0,0,0,0.6)]" id="hud-toast">
+    <span class="material-symbols-outlined text-primary text-[18px]" id="toast-icon">check</span>
+    <span class="font-mono text-xs text-on-surface" id="toast-text">Copied to Clipboard!</span>
+  </div>
+
+  <!-- =========================================================================
+       MAIN APP CONTAINER
+       ========================================================================= -->
+  <div class="flex flex-col min-h-screen relative app-entering" id="app-wrapper">
+    <!-- Minimal Floating Header (No dot effects) -->
+    <header class="fixed top-0 left-0 right-0 z-40 px-4 sm:px-8 md:px-12 lg:px-20 py-4 flex items-center justify-between max-w-7xl mx-auto w-full pointer-events-none">
+      <div class="pointer-events-auto flex items-center gap-2.5 px-3.5 py-2 rounded-full mica-surface border border-white/10 shadow-lg">
+        <span class="material-symbols-outlined text-primary text-[18px]">layers</span>
+        <span class="font-semibold text-xs sm:text-sm tracking-tight text-on-surface">HoverPad</span>
+        <span class="font-mono text-[10px] text-on-surface-variant uppercase tracking-wider pl-1.5 border-l border-white/15">DESKTOP</span>
+      </div>
+      <nav class="hidden md:flex pointer-events-auto items-center gap-1 p-1 rounded-full mica-surface border border-white/10 shadow-lg">
+        <a class="px-3.5 py-1.5 rounded-full text-xs font-medium text-on-surface-variant hover:text-white hover:bg-white/5 transition-colors" href="#anatomy">Anatomy</a>
+        <a class="px-3.5 py-1.5 rounded-full text-xs font-medium text-on-surface-variant hover:text-white hover:bg-white/5 transition-colors" href="#choreography">Hotkeys</a>
+        <a class="px-3.5 py-1.5 rounded-full text-xs font-medium text-on-surface-variant hover:text-white hover:bg-white/5 transition-colors" href="#cli-pipeline">CLI Pipeline</a>
+        <a class="px-3.5 py-1.5 rounded-full text-xs font-medium text-on-surface-variant hover:text-white hover:bg-white/5 transition-colors" href="#engine">Engine</a>
+        <a class="px-3.5 py-1.5 rounded-full text-xs font-medium text-on-surface-variant hover:text-white hover:bg-white/5 transition-colors" href="#install">Install</a>
+      </nav>
+      <div class="pointer-events-auto flex items-center gap-2">
+        <a class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full mica-surface border border-white/15 text-on-surface hover:text-white hover:border-primary/40 font-medium text-xs transition-all" href="src/index.html">
+          <span class="material-symbols-outlined text-[15px] text-primary">open_in_new</span>
+          <span class="hidden sm:inline">Launch Web App</span>
+          <span class="inline sm:hidden">Web App</span>
+        </a>
+        <a class="inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-4 py-2 rounded-full bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container font-medium text-xs transition-all shadow-[0_0_20px_rgba(62,144,255,0.25)]" download="Install-HoverPad-Windows.bat" href="Install-HoverPad-Windows.bat" onclick="triggerDownload(event)">
+          <span class="material-symbols-outlined text-[16px]">download</span>
+          <span class="hidden xs:inline sm:inline">Download App</span>
+          <span class="inline xs:hidden sm:hidden">Download</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- =========================================================================
+         HERO + INTERACTIVE HUD STAGE
+         ========================================================================= -->
+    <main class="relative w-full grid-bg flex flex-col justify-between pt-24 sm:pt-28 pb-10 px-4 sm:px-8 md:px-12 lg:px-20">
+      <!-- Spatial Ambient Backdrops -->
+      <div class="fixed top-1/4 left-1/6 w-[360px] sm:w-[500px] h-[360px] sm:h-[500px] rounded-full bg-primary/10 blur-[140px] pointer-events-none -z-10"></div>
+      <div class="fixed bottom-1/4 right-1/6 w-[280px] sm:w-[400px] h-[280px] sm:h-[400px] rounded-full bg-primary-container/10 blur-[130px] pointer-events-none -z-10"></div>
+
+      <div class="max-w-7xl w-full mx-auto my-auto grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 xl:gap-16 items-center">
+        <!-- Left Column: Typographic & Action Block (No green dot) -->
+        <div class="lg:col-span-5 flex flex-col items-start text-left order-1">
+          <!-- Clean Typographic Pill (No dot) -->
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container-high/80 border border-white/10 mb-5 sm:mb-6">
+            <span class="font-mono text-[10px] sm:text-[11px] text-primary font-medium tracking-wide uppercase">MICA HUD</span>
+            <span class="text-white/20">•</span>
+            <span class="font-mono text-[10px] sm:text-[11px] text-on-surface-variant">v2.7</span>
+          </div>
+
+          <h1 class="font-bold text-4xl sm:text-6xl md:text-7xl lg:text-[72px] tracking-tight leading-[1.04] text-on-surface">
+            Float.<br />
+            <span class="bg-gradient-to-r from-primary via-surface-tint to-tertiary-container bg-clip-text text-transparent">Copy.</span><br />
+            Done.
+          </h1>
+
+          <p class="mt-4 sm:mt-5 text-sm sm:text-base text-on-surface-variant max-w-md font-normal leading-relaxed">
+            Zero-focus clipboard &amp; collaborative notes overlay for desktop. Summons silently over full-screen IDEs and terminals with live OTA auto-updates.
+          </p>
+
+          <!-- Primary Action Cluster -->
+          <div class="mt-7 sm:mt-8 flex flex-wrap items-center gap-3 w-full sm:w-auto">
+            <a class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2.5 px-5 sm:px-6 py-3.5 rounded-xl bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container font-semibold text-sm transition-all shadow-[0_0_28px_rgba(62,144,255,0.3)] active:scale-95" download="Install-HoverPad-Windows.bat" href="Install-HoverPad-Windows.bat" onclick="triggerDownload(event)">
+              <span class="material-symbols-outlined text-[18px]">download</span>
+              <span>Download for Desktop</span>
+            </a>
+            <a class="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-surface-container-high/90 border border-white/15 hover:border-primary/50 font-semibold text-sm text-on-surface hover:text-white transition-all active:scale-95" href="src/index.html">
+              <span class="material-symbols-outlined text-[17px] text-primary">open_in_new</span>
+              <span>Open Web Workspace</span>
+            </a>
+          </div>
+
+          <!-- 1-Line PowerShell Quick Copy -->
+          <div class="mt-3 w-full max-w-md">
+            <button class="group w-full inline-flex items-center justify-between gap-2 px-4 py-2.5 rounded-xl bg-surface-container-lowest/90 border border-white/10 hover:border-primary/40 font-mono text-xs text-on-surface transition-all active:scale-95 relative" id="copy-winget-btn" title="Click to copy 1-line Windows PowerShell installer">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="text-primary font-semibold shrink-0">PS&gt;</span>
+                <span class="truncate text-on-surface-variant group-hover:text-white transition-colors">irm https://raw.githubusercontent.com/JustNathan25/HoverPad/main/install-hoverpad.ps1 | iex</span>
+              </div>
+              <span class="material-symbols-outlined text-[15px] text-on-surface-variant group-hover:text-primary transition-colors shrink-0">content_copy</span>
+            </button>
+          </div>
+
+          <!-- Micro Specs Bar (No dot icons, clean separator) -->
+          <div class="mt-7 sm:mt-8 flex flex-wrap items-center gap-3 sm:gap-4 font-mono text-[11px] text-outline">
+            <span>x64 &amp; ARM64</span>
+            <span class="text-white/20">/</span>
+            <span>6MB RAM</span>
+            <span class="text-white/20">/</span>
+            <span>Mica &amp; Acrylic</span>
+            <span class="text-white/20">/</span>
+            <span class="text-primary/90">Live OTA Auto-Update</span>
+          </div>
+        </div>
+
+        <!-- Right Column: Interactive Live HUD Card -->
+        <div class="lg:col-span-7 relative flex flex-col items-center justify-center order-2 w-full max-w-xl mx-auto lg:max-w-none">
+          <!-- Surface Controls & Micro Hint -->
+          <div class="flex items-center justify-between w-full max-w-lg mb-2.5 px-1">
+            <div class="flex items-center gap-1 p-1 rounded-lg bg-surface-container-low/90 border border-white/10 shadow-inner">
+              <button class="px-2.5 py-1 rounded-md bg-primary-container text-on-primary-container font-mono text-[11px] font-medium transition-all" id="btn-mica" onclick="setSurface('mica')">Mica</button>
+              <button class="px-2.5 py-1 rounded-md text-on-surface-variant hover:text-on-surface font-mono text-[11px] transition-all" id="btn-acrylic" onclick="setSurface('acrylic')">Acrylic</button>
+            </div>
+            <div class="flex items-center gap-1.5 font-mono text-[11px] text-outline">
+              <span class="hidden sm:inline">Press</span>
+              <kbd class="px-1.5 py-0.5 rounded bg-surface-container text-on-surface text-[10px] font-semibold border border-white/5">1–4</kbd>
+              <span class="hidden sm:inline">or click row</span>
+            </div>
+          </div>
+
+          <!-- Collapsed Mini Pill State (Shown when minimized) -->
+          <div class="hidden w-full max-w-lg p-3 rounded-2xl mica-surface border border-white/15 shadow-2xl items-center justify-between transition-all" id="hud-minimized-pill">
+            <div class="flex items-center gap-2">
+              <span class="material-symbols-outlined text-primary text-[18px]">layers</span>
+              <span class="text-xs font-semibold text-on-surface">HoverPad HUD</span>
+              <span class="font-mono text-[10px] text-outline px-1.5 py-0.5 rounded bg-surface-container">MINIMIZED</span>
+            </div>
+            <button class="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-primary text-on-primary font-mono text-xs font-medium hover:bg-primary-container transition-all" onclick="restoreHud()">
+              <span class="material-symbols-outlined text-[14px]">open_in_full</span>
+              <span>Restore</span>
+            </button>
+          </div>
+
+          <!-- Summon Cue (Shown when HUD is closed/hidden) -->
+          <div class="hidden w-full max-w-lg p-4 rounded-2xl mica-surface border border-primary/30 shadow-[0_0_30px_rgba(62,144,255,0.2)] text-center transition-all" id="hud-summon-cue">
+            <p class="font-mono text-xs text-on-surface-variant mb-2">HUD hidden in zero-focus daemon mode</p>
+            <button class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-on-primary font-mono text-xs font-semibold hover:bg-primary-container transition-all" onclick="summonHud()">
+              <kbd class="bg-on-primary/20 px-1.5 py-0.5 rounded text-[11px]">Alt + Space</kbd>
+              <span>Summon Overlay</span>
+            </button>
+          </div>
+
+          <!-- Active Floating HoverPad HUD -->
+          <div class="w-full max-w-lg rounded-2xl mica-surface border border-white/15 shadow-[0_32px_80px_rgba(0,0,0,0.75)] p-4 transition-all duration-300" id="interactive-hud">
+            <!-- Titlebar -->
+            <div class="flex items-center justify-between pb-3 mb-3 border-b border-white/10 select-none">
+              <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-[16px]">layers</span>
+                <span class="font-semibold text-xs text-on-surface">HoverPad</span>
+                <button class="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary font-mono text-[10px] font-medium hover:bg-primary/20 transition-colors" id="pin-toggle" title="Toggle Always-on-top">
+                  <span class="material-symbols-outlined text-[12px]" id="pin-icon">push_pin</span>
+                  <span id="pin-label">PINNED</span>
+                </button>
+              </div>
+              <!-- Caption Buttons -->
+              <div class="flex items-center gap-1">
+                <button class="w-7 h-6 rounded hover:bg-white/10 flex items-center justify-center text-on-surface-variant transition-colors" onclick="minimizeHud()" title="Minimize HUD">
+                  <span class="material-symbols-outlined text-[14px]">remove</span>
+                </button>
+                <button class="w-7 h-6 rounded hover:bg-error/20 hover:text-error flex items-center justify-center text-on-surface-variant transition-colors" onclick="closeHud()" title="Hide (Alt + Space)">
+                  <span class="material-symbols-outlined text-[14px]">close</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Quick Filter & Tag Pills -->
+            <div class="flex flex-col gap-2 mb-3">
+              <div class="relative flex items-center">
+                <span class="material-symbols-outlined absolute left-3 text-outline text-[16px]">search</span>
+                <input class="w-full pl-9 pr-12 py-2 rounded-xl bg-surface-container-lowest/80 border border-white/10 text-xs font-mono text-on-surface placeholder:text-outline/70 focus:outline-none focus:border-primary/60 transition-all" id="hud-filter" placeholder="Filter snippets or tokens..." type="text" />
+                <kbd class="absolute right-2.5 font-mono text-[10px] text-outline bg-surface-container px-1.5 py-0.5 rounded border border-white/5">/</kbd>
+              </div>
+              <!-- Interactive Category Tag Filters -->
+              <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] font-mono scrollbar-none" id="tag-filters">
+                <button class="tag-btn px-2 py-0.5 rounded-md bg-white/15 text-white font-medium hover:bg-white/20 transition-all" data-tag="all">All</button>
+                <button class="tag-btn px-2 py-0.5 rounded-md bg-surface-container text-outline hover:text-on-surface hover:bg-surface-container-high transition-all" data-tag="dev">Dev</button>
+                <button class="tag-btn px-2 py-0.5 rounded-md bg-surface-container text-outline hover:text-on-surface hover:bg-surface-container-high transition-all" data-tag="api">API</button>
+                <button class="tag-btn px-2 py-0.5 rounded-md bg-surface-container text-outline hover:text-on-surface hover:bg-surface-container-high transition-all" data-tag="secrets">Secrets</button>
+              </div>
+            </div>
+
+            <!-- Snippet Rows -->
+            <div class="flex flex-col gap-1.5" id="snippet-list">
+              <!-- Slot 1 -->
+              <div class="snippet-row group flex items-center justify-between p-2.5 rounded-xl bg-surface-container/60 hover:bg-surface-container-highest border border-transparent hover:border-white/10 cursor-pointer transition-all active:scale-[0.99]" data-clipboard="docker compose -f compose.win.yml up -d" data-index="1" data-tag="dev">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="font-mono text-xs text-primary font-semibold bg-primary/10 px-2 py-0.5 rounded shrink-0">1</span>
+                  <div class="flex flex-col min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs font-medium text-on-surface truncate">Docker Compose Up</span>
+                      <span class="font-mono text-[9px] uppercase px-1 rounded bg-white/5 text-outline">DEV</span>
+                    </div>
+                    <span class="font-mono text-[11px] text-on-surface-variant truncate">docker compose -f compose.win.yml up -d</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 pl-2">
+                  <span class="material-symbols-outlined text-[16px] text-on-surface-variant group-hover:text-primary transition-colors row-icon">content_copy</span>
+                </div>
+              </div>
+
+              <!-- Slot 2 -->
+              <div class="snippet-row group flex items-center justify-between p-2.5 rounded-xl bg-surface-container/60 hover:bg-surface-container-highest border border-transparent hover:border-white/10 cursor-pointer transition-all active:scale-[0.99]" data-clipboard="https://api.hoverpad.dev/v2/health" data-index="2" data-tag="api">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="font-mono text-xs text-primary font-semibold bg-primary/10 px-2 py-0.5 rounded shrink-0">2</span>
+                  <div class="flex flex-col min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs font-medium text-on-surface truncate">Staging Healthcheck</span>
+                      <span class="font-mono text-[9px] uppercase px-1 rounded bg-white/5 text-outline">API</span>
+                    </div>
+                    <span class="font-mono text-[11px] text-on-surface-variant truncate">https://api.hoverpad.dev/v2/health</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 pl-2">
+                  <span class="material-symbols-outlined text-[16px] text-on-surface-variant group-hover:text-primary transition-colors row-icon">content_copy</span>
+                </div>
+              </div>
+
+              <!-- Slot 3 -->
+              <div class="snippet-row group flex items-center justify-between p-2.5 rounded-xl bg-surface-container/60 hover:bg-surface-container-highest border border-transparent hover:border-white/10 cursor-pointer transition-all active:scale-[0.99]" data-clipboard="winget upgrade --all --silent" data-index="3" data-tag="dev">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="font-mono text-xs text-primary font-semibold bg-primary/10 px-2 py-0.5 rounded shrink-0">3</span>
+                  <div class="flex flex-col min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs font-medium text-on-surface truncate">WinGet Silent Upgrade</span>
+                      <span class="font-mono text-[9px] uppercase px-1 rounded bg-white/5 text-outline">CLI</span>
+                    </div>
+                    <span class="font-mono text-[11px] text-on-surface-variant truncate">winget upgrade --all --silent</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 pl-2">
+                  <span class="material-symbols-outlined text-[16px] text-on-surface-variant group-hover:text-primary transition-colors row-icon">content_copy</span>
+                </div>
+              </div>
+
+              <!-- Slot 4 (Secret with toggle) -->
+              <div class="snippet-row group flex items-center justify-between p-2.5 rounded-xl bg-surface-container/60 hover:bg-surface-container-highest border border-transparent hover:border-white/10 cursor-pointer transition-all active:scale-[0.99]" data-clipboard="HP_LIVE_9824_XQ77" data-index="4" data-tag="secrets">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="font-mono text-xs text-primary font-semibold bg-primary/10 px-2 py-0.5 rounded shrink-0">4</span>
+                  <div class="flex flex-col min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs font-medium text-on-surface truncate">Staging Token</span>
+                      <span class="font-mono text-[9px] uppercase px-1 rounded bg-white/5 text-outline">SECRET</span>
+                    </div>
+                    <span class="font-mono text-[11px] text-on-surface-variant truncate" id="secret-val">HP_TOKEN=••••••••••••••••••••</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5 pl-2">
+                  <button class="p-1 rounded hover:bg-white/10 text-outline hover:text-on-surface transition-colors" id="toggle-secret" title="Reveal / Conceal Token" type="button">
+                    <span class="material-symbols-outlined text-[15px]">visibility</span>
+                  </button>
+                  <span class="material-symbols-outlined text-[16px] text-on-surface-variant group-hover:text-primary transition-colors row-icon">content_copy</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Bottom Status (Clean typography, NO green dot) -->
+            <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between font-mono text-[10px] text-outline">
+              <span class="truncate max-w-[200px]" id="hud-live-status">Clipboard Synced</span>
+              <span class="text-primary font-medium tracking-wide uppercase">ACTIVE</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- =========================================================================
+           RESPONSIVE INTERACTIVE SHORTCUT DOCK
+           ========================================================================= -->
+      <div class="w-full max-w-3xl mx-auto mt-10 sm:mt-14">
+        <div class="flex items-center justify-start sm:justify-center gap-2 p-2 sm:p-2.5 rounded-2xl mica-surface border border-white/10 shadow-[0_16px_48px_rgba(0,0,0,0.5)] overflow-x-auto scrollbar-none">
+          <button class="dock-key flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container/70 hover:bg-surface-container-highest border border-white/5 hover:border-primary/40 transition-all shrink-0 active:scale-95" onclick="summonHud()" title="Summon or Highlight HUD">
+            <kbd class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-surface-container-lowest text-primary border border-white/5">Alt + Space</kbd>
+            <span class="text-xs text-on-surface-variant font-medium">Summon</span>
+          </button>
+          <button class="dock-key flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container/70 hover:bg-surface-container-highest border border-white/5 hover:border-primary/40 transition-all shrink-0 active:scale-95" onclick="copySlot(1)" title="Copy Slot 1">
+            <kbd class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-surface-container-lowest text-primary border border-white/5">1–4</kbd>
+            <span class="text-xs text-on-surface-variant font-medium">Instant Copy</span>
+          </button>
+          <button class="dock-key flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container/70 hover:bg-surface-container-highest border border-white/5 hover:border-primary/40 transition-all shrink-0 active:scale-95" onclick="togglePinDirect()" title="Toggle Pin Mode">
+            <kbd class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-surface-container-lowest text-primary border border-white/5">Ctrl + Shift + P</kbd>
+            <span class="text-xs text-on-surface-variant font-medium">Pin</span>
+          </button>
+          <button class="dock-key flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-container/70 hover:bg-surface-container-highest border border-white/5 hover:border-white/20 transition-all shrink-0 active:scale-95" onclick="closeHud()" title="Dismiss HUD">
+            <kbd class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-surface-container-lowest text-on-surface-variant border border-white/5">Esc</kbd>
+            <span class="text-xs text-on-surface-variant font-medium">Hide</span>
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- =========================================================================
+         SECTION A: THE ZERO-FOCUS ANATOMY (Exploded Layer Inspector)
+         ========================================================================= -->
+    <section class="relative w-full py-24 sm:py-32 px-4 sm:px-8 md:px-12 lg:px-20 border-t border-white/5" id="anatomy">
+      <div class="max-w-7xl mx-auto">
+        <div class="reveal-item max-w-2xl mb-12 sm:mb-16">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container-high/70 border border-white/10 mb-4">
+            <span class="font-mono text-[10px] sm:text-[11px] text-primary tracking-wide uppercase">ARCHITECTURAL TELEMETRY</span>
+            <span class="text-white/20">•</span>
+            <span class="font-mono text-[10px] sm:text-[11px] text-on-surface-variant">WS_EX_NOACTIVATE</span>
+          </div>
+          <h2 class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white mb-4">The Zero-Focus Anatomy</h2>
+          <p class="text-sm sm:text-base text-on-surface-variant leading-relaxed font-normal">
+            Conventional clipboard tools hijack your cursor, strip focus from Neovim or VS Code, and interrupt your keystroke train. HoverPad uses zero-focus DirectComposition layering.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          <!-- Left: Interactive Layer Blueprint -->
+          <div class="lg:col-span-7 reveal-item">
+            <div class="blueprint-grid rounded-3xl p-6 sm:p-10 border border-white/10 mica-surface relative overflow-hidden">
+              <div class="flex items-center justify-between mb-8 pb-4 border-b border-white/10">
+                <div class="flex items-center gap-2 font-mono text-xs text-outline">
+                  <span class="material-symbols-outlined text-primary text-[18px]">view_in_ar</span>
+                  <span>LAYER STACK VISUALIZER</span>
+                </div>
+                <span class="font-mono text-[11px] text-primary">SELECT A LAYER TO INSPECT</span>
+              </div>
+
+              <div class="space-y-4 relative" id="layer-stack">
+                <!-- Layer 01 -->
+                <div class="layer-item cursor-pointer p-4 sm:p-5 rounded-2xl bg-surface-container-low/90 border border-primary/50 transition-all hover:border-primary active:scale-[0.99] group shadow-[0_8px_30px_rgba(0,0,0,0.4)]" data-layer="topmost">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                      <span class="font-mono text-xs px-2 py-0.5 rounded bg-primary/20 text-primary font-bold">L-01</span>
+                      <span class="font-semibold text-sm sm:text-base text-white group-hover:text-primary transition-colors">WS_EX_NOACTIVATE Topmost Surface</span>
+                    </div>
+                    <span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors text-[20px]">chevron_right</span>
+                  </div>
+                  <p class="font-mono text-xs text-on-surface-variant mt-2 pl-9">Rendered via DirectComposition HW accelerated swapchain</p>
+                </div>
+
+                <!-- Layer 02 -->
+                <div class="layer-item cursor-pointer p-4 sm:p-5 rounded-2xl bg-surface-container-low/60 border border-white/10 transition-all hover:border-white/30 active:scale-[0.99] group" data-layer="winevent">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                      <span class="font-mono text-xs px-2 py-0.5 rounded bg-white/10 text-on-surface-variant font-bold">L-02</span>
+                      <span class="font-semibold text-sm sm:text-base text-white group-hover:text-primary transition-colors">Raw Input WinEvent Hook</span>
+                    </div>
+                    <span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors text-[20px]">chevron_right</span>
+                  </div>
+                  <p class="font-mono text-xs text-on-surface-variant mt-2 pl-9">Pass-through low-level keyboard chord arbiter</p>
+                </div>
+
+                <!-- Layer 03 -->
+                <div class="layer-item cursor-pointer p-4 sm:p-5 rounded-2xl bg-surface-container-low/60 border border-white/10 transition-all hover:border-white/30 active:scale-[0.99] group" data-layer="ringbuffer">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                      <span class="font-mono text-xs px-2 py-0.5 rounded bg-white/10 text-on-surface-variant font-bold">L-03</span>
+                      <span class="font-semibold text-sm sm:text-base text-white group-hover:text-primary transition-colors">Circular Memory Ring-Buffer</span>
+                    </div>
+                    <span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors text-[20px]">chevron_right</span>
+                  </div>
+                  <p class="font-mono text-xs text-on-surface-variant mt-2 pl-9">Locked fixed-size byte arena with encrypted volatile storage</p>
+                </div>
+              </div>
+
+              <div class="mt-8 pt-4 border-t border-white/10 flex items-center justify-between font-mono text-[11px] text-outline">
+                <span>Host IDE: Uninterrupted typing cursor state</span>
+                <span class="text-secondary font-medium">ZERO FOCUS STEAL</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Dynamic Spec Card -->
+          <div class="lg:col-span-5 reveal-item">
+            <div class="p-6 sm:p-8 rounded-3xl mica-surface border border-white/15 shadow-2xl relative" id="layer-detail-box">
+              <div class="flex items-center justify-between mb-4">
+                <span class="font-mono text-[11px] text-primary uppercase font-bold tracking-wider" id="detail-tag">SYSTEM SPECIFICATION</span>
+                <span class="font-mono text-[11px] text-outline" id="detail-id">HOOK_ID: 0x88F0</span>
+              </div>
+              <h3 class="text-xl sm:text-2xl font-bold text-white mb-3" id="detail-title">WS_EX_NOACTIVATE Topmost Surface</h3>
+              <p class="text-sm text-on-surface-variant mb-6 leading-relaxed" id="detail-desc">
+                HoverPad requests the desktop window manager to map the floating surface with the WS_EX_NOACTIVATE bitmask flag. The foreground process (your terminal, editor, or browser) never receives a WM_KILLFOCUS notification.
+              </p>
+              <div class="rounded-xl bg-surface-container-lowest/90 border border-white/10 p-4 font-mono text-xs text-primary mb-6 overflow-x-auto" id="detail-code">
+                <code>CreateWindowExW(
+  WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+  L"HoverPadMicaHost", nullptr, WS_POPUP,
+  x, y, w, h, nullptr, nullptr, hInstance, nullptr
+);</code>
+              </div>
+              <div class="grid grid-cols-2 gap-3 font-mono text-xs">
+                <div class="p-3 rounded-lg bg-surface-container-low border border-white/5">
+                  <div class="text-outline text-[10px] uppercase">Latency</div>
+                  <div class="text-white font-semibold text-sm mt-0.5" id="detail-stat1">&lt; 0.8ms</div>
+                </div>
+                <div class="p-3 rounded-lg bg-surface-container-low border border-white/5">
+                  <div class="text-outline text-[10px] uppercase">Overhead</div>
+                  <div class="text-white font-semibold text-sm mt-0.5" id="detail-stat2">0 ctx switches</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         SECTION B: ZERO-LATENCY KEYBOARD CHOREOGRAPHY (Interactive Lab)
+         ========================================================================= -->
+    <section class="relative w-full py-24 sm:py-32 px-4 sm:px-8 md:px-12 lg:px-20" id="choreography">
+      <div class="max-w-7xl mx-auto">
+        <div class="reveal-item max-w-2xl mb-12 sm:mb-16">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container-high/70 border border-white/10 mb-4">
+            <span class="font-mono text-[10px] sm:text-[11px] text-primary tracking-wide uppercase">HOTKEY CHOREOGRAPHY</span>
+            <span class="text-white/20">•</span>
+            <span class="font-mono text-[10px] sm:text-[11px] text-on-surface-variant">TACTILE COMMAND LAB</span>
+          </div>
+          <h2 class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white mb-4">Zero-Latency Muscle Memory</h2>
+          <p class="text-sm sm:text-base text-on-surface-variant leading-relaxed font-normal">
+            Test the tactile hotkey chords in real-time. HoverPad maps directly to subconscious keyboard habits, eliminating drag, right-click, and modal interruption.
+          </p>
+        </div>
+
+        <!-- Interactive Keyboard Playground -->
+        <div class="reveal-item rounded-3xl mica-surface border border-white/15 p-6 sm:p-10 shadow-2xl">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+            <!-- Interactive Preset Selector -->
+            <div class="lg:col-span-4 space-y-3">
+              <div class="font-mono text-xs text-outline uppercase tracking-wider mb-2">Select Shortcut Workflow:</div>
+              <button class="flow-btn w-full text-left p-4 rounded-2xl bg-surface-container-high/80 border border-primary/50 text-white transition-all active:scale-[0.98]" data-keys="Alt,Space" data-result="HUD summoned silently on active monitor cursor point." data-title="Summon Chord">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="font-semibold text-sm">Summon Chord</span>
+                  <span class="font-mono text-xs text-primary font-medium">Alt + Space</span>
+                </div>
+                <p class="text-xs text-on-surface-variant">Wakes the HUD overlay instantly without stealing focus</p>
+              </button>
+              <button class="flow-btn w-full text-left p-4 rounded-2xl bg-surface-container-low/60 border border-white/5 text-on-surface-variant hover:text-white hover:border-white/20 transition-all active:scale-[0.98]" data-keys="1" data-result="Dispatched Slot 1 into clipboard and automatically concealed HUD." data-title="Hot-Slot Dispatch">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="font-semibold text-sm">Hot-Slot Dispatch</span>
+                  <span class="font-mono text-xs text-outline font-medium">1 – 4</span>
+                </div>
+                <p class="text-xs text-on-surface-variant">Copies numbered buffer directly to native clipboard</p>
+              </button>
+              <button class="flow-btn w-full text-left p-4 rounded-2xl bg-surface-container-low/60 border border-white/5 text-on-surface-variant hover:text-white hover:border-white/20 transition-all active:scale-[0.98]" data-keys="/" data-result="Instant search filter activated; input cursor ready for regex tokens." data-title="Token Filter Recall">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="font-semibold text-sm">Token Filter Recall</span>
+                  <span class="font-mono text-xs text-outline font-medium">/</span>
+                </div>
+                <p class="text-xs text-on-surface-variant">Jump straight into fuzzy search for tokens and commands</p>
+              </button>
+              <button class="flow-btn w-full text-left p-4 rounded-2xl bg-surface-container-low/60 border border-white/5 text-on-surface-variant hover:text-white hover:border-white/20 transition-all active:scale-[0.98]" data-keys="Escape" data-result="Overlay smoothly dismissed with zero residue. Active app intact." data-title="Silent Discard">
+                <div class="flex items-center justify-between mb-1">
+                  <span class="font-semibold text-sm">Silent Discard</span>
+                  <span class="font-mono text-xs text-outline font-medium">Esc</span>
+                </div>
+                <p class="text-xs text-on-surface-variant">Dismisses overlay instantly back into zero-resource daemon</p>
+              </button>
+            </div>
+
+            <!-- Virtual Keyboard & Feed -->
+            <div class="lg:col-span-8 flex flex-col items-center justify-center p-6 sm:p-8 rounded-2xl bg-surface-container-lowest/80 border border-white/10">
+              <!-- Keycap Display Stage -->
+              <div class="flex flex-wrap items-center justify-center gap-3 sm:gap-4 my-8" id="virtual-keycaps">
+                <div class="keycap px-4 sm:px-6 py-3 sm:py-4 rounded-xl font-mono text-sm sm:text-base font-semibold bg-primary text-on-primary border border-white/20 shadow-[0_4px_16px_rgba(62,144,255,0.4)] transition-all">Alt</div>
+                <span class="text-outline font-mono text-xl">+</span>
+                <div class="keycap px-4 sm:px-6 py-3 sm:py-4 rounded-xl font-mono text-sm sm:text-base font-semibold bg-primary text-on-primary border border-white/20 shadow-[0_4px_16px_rgba(62,144,255,0.4)] transition-all">Space</div>
+              </div>
+              <!-- Output Telemetry Console -->
+              <div class="w-full p-4 rounded-xl bg-surface-container-low/90 border border-white/5 font-mono text-xs">
+                <div class="flex items-center justify-between text-outline text-[11px] mb-2 pb-1.5 border-b border-white/5">
+                  <span>ACTION DISPATCHER FEED</span>
+                  <span class="text-primary font-medium">DISPATCH OK</span>
+                </div>
+                <p class="text-white text-xs sm:text-sm font-medium" id="flow-telemetry-text">HUD summoned silently on active monitor cursor point.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         SECTION: CLI PIPELINE STREAMING (Terminal Simulator + Synchronized HUD)
+         ========================================================================= -->
+    <section class="relative w-full py-24 sm:py-32 px-4 sm:px-8 md:px-12 lg:px-20 border-t border-white/5" id="cli-pipeline">
+      <div class="max-w-7xl mx-auto">
+        <div class="reveal-item max-w-3xl mb-12 sm:mb-16">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container-high/70 border border-white/10 mb-4">
+            <span class="font-mono text-[10px] sm:text-[11px] text-primary tracking-wide uppercase">UNIX PIPELINES // ZERO-CONTEXT SWITCHING</span>
+            <span class="text-white/20">•</span>
+            <span class="font-mono text-[10px] sm:text-[11px] text-on-surface-variant">CLI COMPANION</span>
+          </div>
+          <h2 class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white mb-4">
+            Pipe into Muscle Memory.<br />
+            CLI Clipboard Streaming.
+          </h2>
+          <p class="text-sm sm:text-base text-on-surface-variant leading-relaxed font-normal">
+            HoverPad's lightweight companion CLI (<code class="text-primary font-mono bg-white/5 px-1.5 py-0.5 rounded">hoverpad</code> / <code class="text-primary font-mono bg-white/5 px-1.5 py-0.5 rounded">hp</code>) integrates directly into bash, zsh, and PowerShell pipelines. Pipe stdin directly into quick-access numbered slots, grep secrets silently, or stream stdout into your active desktop buffer without leaving the terminal.
+          </p>
+        </div>
+
+        <!-- Preset Pipeline Selector Tabs -->
+        <div class="reveal-item grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-8">
+          <button class="cli-preset-btn text-left p-3.5 rounded-2xl bg-surface-container-high border border-primary/50 transition-all active:scale-[0.98] group" data-cmd="git diff --stat | hp --slot 1" data-preset="1">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="font-mono text-[10px] uppercase font-bold text-primary">01. Pipe to Slot</span>
+              <span class="font-mono text-[10px] text-outline">SLOT #1</span>
+            </div>
+            <code class="block font-mono text-xs text-white truncate font-medium group-hover:text-primary transition-colors">git diff --stat | hp --slot 1</code>
+          </button>
+          <button class="cli-preset-btn text-left p-3.5 rounded-2xl bg-surface-container-low/60 border border-white/5 hover:border-white/20 transition-all active:scale-[0.98] group" data-cmd="curl -s api.internal/keys | jq -r '.token' | hp --secret" data-preset="2">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="font-mono text-[10px] uppercase font-bold text-outline">02. Stream Key</span>
+              <span class="font-mono text-[10px] text-outline">SLOT #4</span>
+            </div>
+            <code class="block font-mono text-xs text-on-surface-variant truncate font-medium group-hover:text-white transition-colors">curl -s api/keys | jq | hp --secret</code>
+          </button>
+          <button class="cli-preset-btn text-left p-3.5 rounded-2xl bg-surface-container-low/60 border border-white/5 hover:border-white/20 transition-all active:scale-[0.98] group" data-cmd="docker logs -f app 2>&amp;1 | hp --tail 10" data-preset="3">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="font-mono text-[10px] uppercase font-bold text-outline">03. Tail Logs</span>
+              <span class="font-mono text-[10px] text-outline">RING-BUFFER</span>
+            </div>
+            <code class="block font-mono text-xs text-on-surface-variant truncate font-medium group-hover:text-white transition-colors">docker logs -f app | hp --tail 10</code>
+          </button>
+          <button class="cli-preset-btn text-left p-3.5 rounded-2xl bg-surface-container-low/60 border border-white/5 hover:border-white/20 transition-all active:scale-[0.98] group" data-cmd="hp --get 2 | xargs deploy" data-preset="4">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="font-mono text-[10px] uppercase font-bold text-outline">04. Stdout Paste</span>
+              <span class="font-mono text-[10px] text-outline">SLOT #2</span>
+            </div>
+            <code class="block font-mono text-xs text-on-surface-variant truncate font-medium group-hover:text-white transition-colors">hp --get 2 | xargs deploy</code>
+          </button>
+        </div>
+
+        <!-- Interactive Terminal + Synchronized HUD Stage -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <!-- Left: Realistic Terminal Window Simulator -->
+          <div class="lg:col-span-7 reveal-item">
+            <div class="rounded-3xl bg-surface-container-lowest/95 border border-white/15 shadow-[0_24px_60px_rgba(0,0,0,0.7)] overflow-hidden">
+              <!-- Terminal Titlebar -->
+              <div class="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-white/10 bg-[#16171b]/90 select-none">
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-white/20"></div>
+                  <div class="w-3 h-3 rounded-full bg-white/15"></div>
+                  <div class="w-3 h-3 rounded-full bg-white/10"></div>
+                  <span class="font-mono text-xs text-outline ml-2.5 truncate">user@station: ~ / dev / pipeline</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-surface-container hover:bg-surface-container-high border border-white/10 text-outline hover:text-white font-mono text-[11px] transition-colors" id="cli-copy-btn" onclick="copyActiveCliCommand()" title="Copy command to clipboard">
+                    <span class="material-symbols-outlined text-[14px]">content_copy</span>
+                    <span>Copy CLI</span>
+                  </button>
+                  <button class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container font-mono text-[11px] font-semibold transition-all active:scale-95" id="cli-run-btn" onclick="runActivePipeline()">
+                    <span class="material-symbols-outlined text-[14px]">play_arrow</span>
+                    <span>Simulate Pipe</span>
+                  </button>
+                </div>
+              </div>
+              <!-- Terminal Content / Buffer Body -->
+              <div class="p-4 sm:p-6 font-mono text-xs text-on-surface space-y-3.5 min-h-[340px] flex flex-col justify-between">
+                <div>
+                  <!-- Shell History Context -->
+                  <div class="text-outline/70 pb-2 border-b border-white/5 space-y-1">
+                    <div>HoverPad CLI Companion v2.7 (x86_64-pc-windows-msvc)</div>
+                    <div>FIFO socket: \\.\pipe\hoverpad_ipc_9824 [CONNECTED]</div>
+                  </div>
+                  <!-- Active Command Line -->
+                  <div class="mt-4 flex items-center gap-2 flex-wrap">
+                    <span class="text-primary font-bold select-none">$</span>
+                    <span class="text-white font-semibold" id="cli-active-cmd">git diff --stat | hp --slot 1</span>
+                    <span class="inline-block w-2 h-4 bg-primary cursor-blink ml-0.5"></span>
+                  </div>
+                  <!-- Dynamic Terminal Stderr / Stdout Output Block -->
+                  <div class="mt-4 p-3.5 rounded-xl bg-surface-container-low/70 border border-white/5 text-xs font-mono space-y-1.5 transition-all overflow-x-auto" id="cli-stdout-feed">
+                    <div class="text-outline"># Capturing diff summary into slot buffer...</div>
+                    <div class="text-on-surface"> src/daemon.cpp      |  48 +++++++++++++++++-</div>
+                    <div class="text-on-surface"> include/mica.h      |  12 ++--</div>
+                    <div class="text-on-surface"> 2 files changed, 52 insertions(+), 8 deletions(-)</div>
+                    <div class="text-primary/90 mt-2">[hp:daemon] mapped 412 bytes to slot #1 via shared-memory FIFO in 0.2ms</div>
+                    <div class="text-secondary font-medium mt-1">✓ RETURN 0 (OK) — Desktop HUD Slot 1 Synchronized</div>
+                  </div>
+                </div>
+                <!-- Terminal Footer Info Bar -->
+                <div class="pt-3 border-t border-white/10 flex items-center justify-between text-[11px] text-outline">
+                  <div class="flex items-center gap-2">
+                    <span>IPC PROTOCOL: IPC_MICA_V2</span>
+                    <span class="text-white/20">/</span>
+                    <span>NON-BLOCKING</span>
+                  </div>
+                  <span class="text-primary font-medium" id="cli-status-indicator">READY FOR PIPING</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Synchronized Companion HoverPad HUD Preview -->
+          <div class="lg:col-span-5 reveal-item">
+            <div class="space-y-4">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 font-mono text-xs text-outline">
+                  <span class="material-symbols-outlined text-primary text-[18px]">sync_saved_locally</span>
+                  <span>SYNCHRONIZED HUD PREVIEW</span>
+                </div>
+                <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-primary/20 text-primary font-semibold">LIVE MIRROR</span>
+              </div>
+              <!-- Mini HUD Card that reflects pipe updates -->
+              <div class="rounded-2xl mica-surface border border-white/15 shadow-[0_24px_60px_rgba(0,0,0,0.6)] p-4 transition-all duration-300" id="cli-sync-hud">
+                <!-- Titlebar -->
+                <div class="flex items-center justify-between pb-2.5 mb-2.5 border-b border-white/10">
+                  <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-[16px]">layers</span>
+                    <span class="font-semibold text-xs text-white">HoverPad HUD</span>
+                    <span class="font-mono text-[9px] uppercase px-1.5 py-0.2 rounded bg-white/10 text-primary font-medium">STREAMING</span>
+                  </div>
+                  <span class="font-mono text-[10px] text-outline" id="cli-hud-updated-slot">Slot 1 Updated</span>
+                </div>
+                <!-- Piped Slots Visualization -->
+                <div class="space-y-1.5 font-mono text-xs">
+                  <!-- Slot 1 -->
+                  <div class="cli-hud-slot flex items-center justify-between p-2 rounded-xl bg-surface-container/70 border border-primary/40 transition-all" id="cli-slot-1">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <span class="font-mono text-xs text-primary font-bold bg-primary/20 px-1.5 py-0.5 rounded shrink-0">1</span>
+                      <div class="flex flex-col min-w-0">
+                        <span class="text-[11px] text-white font-medium truncate" id="cli-slot-1-title">Git Diff Stat</span>
+                        <span class="text-[10px] text-on-surface-variant truncate" id="cli-slot-1-body">2 files changed, 52 insertions(+), 8 deletions(-)</span>
+                      </div>
+                    </div>
+                    <span class="material-symbols-outlined text-[14px] text-primary shrink-0">input</span>
+                  </div>
+                  <!-- Slot 2 -->
+                  <div class="cli-hud-slot flex items-center justify-between p-2 rounded-xl bg-surface-container/40 border border-transparent transition-all" id="cli-slot-2">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <span class="font-mono text-xs text-outline font-bold bg-white/5 px-1.5 py-0.5 rounded shrink-0">2</span>
+                      <div class="flex flex-col min-w-0">
+                        <span class="text-[11px] text-on-surface truncate" id="cli-slot-2-title">Staging Healthcheck</span>
+                        <span class="text-[10px] text-on-surface-variant truncate" id="cli-slot-2-body">https://api.hoverpad.dev/v2/health</span>
+                      </div>
+                    </div>
+                    <span class="material-symbols-outlined text-[14px] text-outline shrink-0">content_copy</span>
+                  </div>
+                  <!-- Slot 3 -->
+                  <div class="cli-hud-slot flex items-center justify-between p-2 rounded-xl bg-surface-container/40 border border-transparent transition-all" id="cli-slot-3">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <span class="font-mono text-xs text-outline font-bold bg-white/5 px-1.5 py-0.5 rounded shrink-0">3</span>
+                      <div class="flex flex-col min-w-0">
+                        <span class="text-[11px] text-on-surface truncate" id="cli-slot-3-title">Container Tail</span>
+                        <span class="text-[10px] text-on-surface-variant truncate" id="cli-slot-3-body">winget upgrade --all --silent</span>
+                      </div>
+                    </div>
+                    <span class="material-symbols-outlined text-[14px] text-outline shrink-0">content_copy</span>
+                  </div>
+                  <!-- Slot 4 -->
+                  <div class="cli-hud-slot flex items-center justify-between p-2 rounded-xl bg-surface-container/40 border border-transparent transition-all" id="cli-slot-4">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <span class="font-mono text-xs text-outline font-bold bg-white/5 px-1.5 py-0.5 rounded shrink-0">4</span>
+                      <div class="flex flex-col min-w-0">
+                        <span class="text-[11px] text-on-surface truncate" id="cli-slot-4-title">Vault Token</span>
+                        <span class="text-[10px] text-on-surface-variant truncate" id="cli-slot-4-body">HP_TOKEN=••••••••••••••••••••</span>
+                      </div>
+                    </div>
+                    <span class="material-symbols-outlined text-[14px] text-outline shrink-0">lock</span>
+                  </div>
+                </div>
+                <div class="mt-3 pt-2 border-t border-white/5 flex items-center justify-between font-mono text-[10px] text-outline">
+                  <span>Zero focus steal on terminal</span>
+                  <span class="text-secondary font-medium">IPC STREAM COMPLETE</span>
+                </div>
+              </div>
+              <!-- Documentation micro snippet -->
+              <div class="p-4 rounded-2xl bg-surface-container-low/70 border border-white/10 font-mono text-xs">
+                <div class="text-outline text-[10px] uppercase font-bold mb-1.5">CLI Quick Installation</div>
+                <p class="text-on-surface-variant text-[11px] mb-2 leading-relaxed">The companion CLI ships bundled inside the standard installer or can be symlinked independently via PowerShell or Scoop.</p>
+                <div class="bg-surface-container-lowest p-2 rounded-lg border border-white/5 text-primary flex items-center justify-between">
+                  <span class="truncate">hp --help &amp;&amp; hp --daemon</span>
+                  <button class="text-outline hover:text-white ml-2 transition-colors" onclick="copySnippet('hp --help && hp --daemon', 'CLI Help command copied')">
+                    <span class="material-symbols-outlined text-[14px]">content_copy</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         SECTION C: BENCHMARKS & NATIVE ARCHITECTURE
+         ========================================================================= -->
+    <section class="relative w-full py-24 sm:py-32 px-4 sm:px-8 md:px-12 lg:px-20 border-t border-white/5" id="engine">
+      <div class="max-w-7xl mx-auto">
+        <div class="reveal-item max-w-2xl mb-12 sm:mb-16">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container-high/70 border border-white/10 mb-4">
+            <span class="font-mono text-[10px] sm:text-[11px] text-primary tracking-wide uppercase">PERFORMANCE BENCHMARKS</span>
+            <span class="text-white/20">•</span>
+            <span class="font-mono text-[10px] sm:text-[11px] text-on-surface-variant">NATIVE C++ VS ELECTRON</span>
+          </div>
+          <h2 class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white mb-4">
+            Built for Speed.<br />
+            Zero Focus Interruption.
+          </h2>
+          <p class="text-sm sm:text-base text-on-surface-variant leading-relaxed font-normal">
+            Modern productivity utilities routinely consume 400MB+ for a single tray icon. HoverPad stays ultra-lightweight with live Over-the-Air GitHub auto-updates and AES-256 end-to-end encryption.
+          </p>
+        </div>
+
+        <!-- Side-by-side Telemetry Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <!-- Metric 1: RAM -->
+          <div class="reveal-item p-6 sm:p-8 rounded-3xl mica-surface border border-white/15 relative">
+            <div class="font-mono text-[11px] text-outline uppercase mb-2">Memory Consumption</div>
+            <div class="flex items-baseline gap-2 mb-4">
+              <span class="text-4xl sm:text-5xl font-bold text-white font-mono">6</span>
+              <span class="text-sm font-mono text-primary font-semibold">MB</span>
+            </div>
+            <div class="space-y-2 mb-6">
+              <div>
+                <div class="flex justify-between text-xs font-mono text-outline mb-1">
+                  <span>HoverPad HUD</span>
+                  <span class="text-primary font-bold">6 MB</span>
+                </div>
+                <div class="h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div class="h-full bg-primary rounded-full" style="width: 2%"></div>
+                </div>
+              </div>
+              <div>
+                <div class="flex justify-between text-xs font-mono text-outline mb-1">
+                  <span>Heavy Alternatives</span>
+                  <span class="text-error font-medium">420 MB</span>
+                </div>
+                <div class="h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div class="h-full bg-error/70 rounded-full" style="width: 95%"></div>
+                </div>
+              </div>
+            </div>
+            <p class="font-mono text-[11px] text-on-surface-variant">70× lower working set footprint compared to standard web-wrapped utilities.</p>
+          </div>
+
+          <!-- Metric 2: Invocation Latency -->
+          <div class="reveal-item p-6 sm:p-8 rounded-3xl mica-surface border border-white/15 relative">
+            <div class="font-mono text-[11px] text-outline uppercase mb-2">Overlay Paint Latency</div>
+            <div class="flex items-baseline gap-2 mb-4">
+              <span class="text-4xl sm:text-5xl font-bold text-white font-mono">2.4</span>
+              <span class="text-sm font-mono text-primary font-semibold">ms</span>
+            </div>
+            <div class="space-y-2 mb-6">
+              <div>
+                <div class="flex justify-between text-xs font-mono text-outline mb-1">
+                  <span>HoverPad</span>
+                  <span class="text-primary font-bold">2.4 ms</span>
+                </div>
+                <div class="h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div class="h-full bg-primary rounded-full" style="width: 2.4%"></div>
+                </div>
+              </div>
+              <div>
+                <div class="flex justify-between text-xs font-mono text-outline mb-1">
+                  <span>IPC + DOM Relay</span>
+                  <span class="text-error font-medium">180 ms</span>
+                </div>
+                <div class="h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div class="h-full bg-error/70 rounded-full" style="width: 88%"></div>
+                </div>
+              </div>
+            </div>
+            <p class="font-mono text-[11px] text-on-surface-variant">First-frame presented within current display VSync interval (144Hz ready).</p>
+          </div>
+
+          <!-- Metric 3: Battery Impact -->
+          <div class="reveal-item p-6 sm:p-8 rounded-3xl mica-surface border border-white/15 relative">
+            <div class="font-mono text-[11px] text-outline uppercase mb-2">Idle CPU &amp; Battery Impact</div>
+            <div class="flex items-baseline gap-2 mb-4">
+              <span class="text-4xl sm:text-5xl font-bold text-white font-mono">0.01</span>
+              <span class="text-sm font-mono text-primary font-semibold">%</span>
+            </div>
+            <div class="space-y-2 mb-6">
+              <div>
+                <div class="flex justify-between text-xs font-mono text-outline mb-1">
+                  <span>HoverPad Daemon</span>
+                  <span class="text-primary font-bold">0.01%</span>
+                </div>
+                <div class="h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div class="h-full bg-primary rounded-full" style="width: 1%"></div>
+                </div>
+              </div>
+              <div>
+                <div class="flex justify-between text-xs font-mono text-outline mb-1">
+                  <span>Node.js Polling</span>
+                  <span class="text-error font-medium">3.2%</span>
+                </div>
+                <div class="h-2 rounded-full bg-white/10 overflow-hidden">
+                  <div class="h-full bg-error/70 rounded-full" style="width: 72%"></div>
+                </div>
+              </div>
+            </div>
+            <p class="font-mono text-[11px] text-on-surface-variant">Event-driven MsgWaitForMultipleObjects ensures true zero wakeups during sleep.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         SECTION D: FRICTIONLESS DISTRIBUTION & VERIFICATION
+         ========================================================================= -->
+    <section class="relative w-full py-24 sm:py-32 px-4 sm:px-8 md:px-12 lg:px-20 border-t border-white/5" id="install">
+      <div class="max-w-7xl mx-auto">
+        <div class="reveal-item max-w-2xl mb-12 sm:mb-16">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container-high/70 border border-white/10 mb-4">
+            <span class="font-mono text-[10px] sm:text-[11px] text-primary tracking-wide uppercase">RELEASE STATION</span>
+            <span class="text-white/20">•</span>
+            <span class="font-mono text-[10px] sm:text-[11px] text-on-surface-variant">SMART APP CONTROL SAFE</span>
+          </div>
+          <h2 class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white mb-4">Frictionless Distribution</h2>
+          <p class="text-sm sm:text-base text-on-surface-variant leading-relaxed font-normal">
+            Install the Windows Desktop App in one click or via PowerShell, or launch the full HoverPad Collaborative Workspace directly in your browser.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <!-- Left: Package Managers Terminal -->
+          <div class="lg:col-span-7 reveal-item">
+            <div class="rounded-3xl bg-surface-container-lowest/90 border border-white/15 p-6 sm:p-8 shadow-2xl relative">
+              <div class="flex items-center justify-between pb-4 mb-6 border-b border-white/10">
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full bg-white/20"></div>
+                  <div class="w-3 h-3 rounded-full bg-white/15"></div>
+                  <div class="w-3 h-3 rounded-full bg-white/10"></div>
+                  <span class="font-mono text-xs text-outline ml-2">powershell / terminal</span>
+                </div>
+                <span class="font-mono text-[11px] text-primary">v2.7.0 (STABLE)</span>
+              </div>
+
+              <div class="space-y-4 font-mono text-xs">
+                <!-- 1-Line PowerShell Installer (Recommended) -->
+                <div class="group flex items-center justify-between p-3.5 rounded-xl bg-surface-container-low border border-primary/30 hover:border-primary transition-all cursor-pointer" onclick="copySnippet('irm https://raw.githubusercontent.com/JustNathan25/HoverPad/main/install-hoverpad.ps1 | iex', '1-Click PowerShell Installer Copied!')">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <span class="text-primary text-[11px] uppercase font-semibold w-16 shrink-0">pwsh</span>
+                    <span class="text-white font-medium truncate">irm https://raw.githubusercontent.com/JustNathan25/HoverPad/main/install-hoverpad.ps1 | iex</span>
+                  </div>
+                  <span class="material-symbols-outlined text-[16px] text-outline group-hover:text-primary transition-colors ml-2 shrink-0">content_copy</span>
+                </div>
+
+                <!-- Git Clone + Electron -->
+                <div class="group flex items-center justify-between p-3.5 rounded-xl bg-surface-container-low border border-white/5 hover:border-primary/40 transition-all cursor-pointer" onclick="copySnippet('git clone https://github.com/JustNathan25/HoverPad.git && cd HoverPad && npm install && npm start', 'Git Clone Command Copied!')">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <span class="text-outline text-[11px] uppercase w-16 shrink-0">git</span>
+                    <span class="text-white font-medium truncate">$ git clone https://github.com/JustNathan25/HoverPad.git &amp;&amp; npm start</span>
+                  </div>
+                  <span class="material-symbols-outlined text-[16px] text-outline group-hover:text-primary transition-colors ml-2 shrink-0">content_copy</span>
+                </div>
+
+                <!-- Winget -->
+                <div class="group flex items-center justify-between p-3.5 rounded-xl bg-surface-container-low border border-white/5 hover:border-primary/40 transition-all cursor-pointer" onclick="copySnippet('winget install hoverpad', 'Winget Command Copied')">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <span class="text-outline text-[11px] uppercase w-16 shrink-0">winget</span>
+                    <span class="text-white font-medium truncate">$ winget install hoverpad</span>
+                  </div>
+                  <span class="material-symbols-outlined text-[16px] text-outline group-hover:text-primary transition-colors ml-2 shrink-0">content_copy</span>
+                </div>
+              </div>
+
+              <div class="mt-6 pt-4 border-t border-white/10 flex items-center justify-between font-mono text-[11px] text-outline">
+                <span>Runtime: Microsoft Authenticode Signed Host + OTA Auto-Updater</span>
+                <span class="text-primary font-medium">VERIFIED CLEAN</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Binaries & Web App Launch -->
+          <div class="lg:col-span-5 space-y-4 reveal-item">
+            <div class="p-6 rounded-3xl mica-surface border border-white/15">
+              <div class="flex items-center justify-between mb-4">
+                <span class="font-semibold text-white text-base">Direct Downloads &amp; Web App</span>
+                <span class="font-mono text-xs px-2 py-0.5 rounded bg-primary/20 text-primary">v2.7.0</span>
+              </div>
+              <div class="space-y-3">
+                <a class="flex items-center justify-between p-3.5 rounded-xl bg-primary/15 border border-primary/40 hover:bg-primary/25 transition-all group" download="Install-HoverPad-Windows.bat" href="Install-HoverPad-Windows.bat" onclick="triggerDownload(event)">
+                  <div>
+                    <div class="text-xs font-semibold text-white group-hover:text-primary transition-colors">Install-HoverPad-Windows.bat</div>
+                    <div class="font-mono text-[10px] text-on-surface-variant">1-Click Windows 10/11 Desktop Installer • Auto-Update Ready</div>
+                  </div>
+                  <span class="material-symbols-outlined text-primary group-hover:scale-110 transition-transform text-[20px]">download</span>
+                </a>
+
+                <a class="flex items-center justify-between p-3.5 rounded-xl bg-surface-container/70 border border-white/5 hover:border-primary/40 transition-all group" href="https://github.com/JustNathan25/HoverPad/archive/refs/heads/main.zip" target="_blank">
+                  <div>
+                    <div class="text-xs font-semibold text-white group-hover:text-primary transition-colors">HoverPad-2.7.0-Portable.zip</div>
+                    <div class="font-mono text-[10px] text-outline">Full Source &amp; Portable Desktop Bundle (x64 / ARM64)</div>
+                  </div>
+                  <span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors text-[20px]">folder_zip</span>
+                </a>
+
+                <a class="flex items-center justify-between p-3.5 rounded-xl bg-surface-container/70 border border-white/5 hover:border-primary/40 transition-all group" href="src/index.html">
+                  <div>
+                    <div class="text-xs font-semibold text-white group-hover:text-primary transition-colors">Launch HoverPad Web Workspace</div>
+                    <div class="font-mono text-[10px] text-outline">Instant Browser App • Always-on-Top PiP Notes &amp; Cloud Sync</div>
+                  </div>
+                  <span class="material-symbols-outlined text-outline group-hover:text-primary transition-colors text-[20px]">open_in_new</span>
+                </a>
+              </div>
+
+              <div class="mt-5 pt-4 border-t border-white/10 font-mono text-[11px]">
+                <div class="text-outline text-[10px] uppercase mb-1">SHA-256 Checksum (v2.7.0 Release)</div>
+                <div class="text-on-surface-variant truncate bg-surface-container-lowest p-2 rounded border border-white/5 select-all">
+                  8f39a02ce62194b6de3d41f05e0c5e7b233a1e9411dcae42ff39
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =========================================================================
+         FOOTER
+         ========================================================================= -->
+    <footer class="w-full py-12 px-4 sm:px-8 md:px-12 lg:px-20 border-t border-white/10 bg-surface-container-lowest/60">
+      <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-xl mica-surface border border-white/15 flex items-center justify-center">
+            <span class="material-symbols-outlined text-primary text-[18px]">layers</span>
+          </div>
+          <div>
+            <span class="font-semibold text-sm text-white">HoverPad</span>
+            <span class="font-mono text-xs text-outline block">Zero-Focus Desktop HUD</span>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center justify-center gap-6 font-mono text-xs text-outline">
+          <a class="hover:text-white transition-colors" href="src/index.html">Web Workspace</a>
+          <a class="hover:text-white transition-colors" href="https://github.com/JustNathan25/HoverPad" target="_blank">GitHub</a>
+          <a class="hover:text-white transition-colors" href="#choreography">Docs</a>
+          <a class="hover:text-white transition-colors" href="#cli-pipeline">CLI Pipeline</a>
+          <a class="hover:text-white transition-colors" href="#engine">Architecture</a>
+          <a class="hover:text-white transition-colors" href="#install">Releases</a>
+        </div>
+        <div class="font-mono text-[11px] text-outline">
+          <span>Open Source • MIT License</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- =========================================================================
+       STICKY BOTTOM TELEMETRY DOCK (Scroll Reveal)
+       ========================================================================= -->
+  <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 transition-all duration-300 opacity-0 translate-y-6 pointer-events-none" id="sticky-bar">
+    <div class="pointer-events-auto flex items-center gap-3 px-4 py-2.5 rounded-full mica-surface border border-white/15 shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
+      <div class="flex items-center gap-2 pr-3 border-r border-white/10 font-mono text-xs">
+        <span class="material-symbols-outlined text-primary text-[16px]">layers</span>
+        <span class="font-semibold text-white">HoverPad</span>
+        <span class="text-outline text-[11px]">v2.7</span>
+      </div>
+      <div class="hidden sm:flex items-center gap-2 font-mono text-xs text-outline pr-2">
+        <span>x64 &amp; ARM64</span>
+        <span class="text-white/20">•</span>
+        <span>&lt; 6MB RAM</span>
+      </div>
+      <a class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-high text-on-surface hover:text-white text-xs font-medium transition-all" href="src/index.html">
+        <span>Web App</span>
+      </a>
+      <a class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-primary text-on-primary hover:bg-primary-container text-xs font-semibold transition-all shadow-md active:scale-95" download="Install-HoverPad-Windows.bat" href="Install-HoverPad-Windows.bat" onclick="triggerDownload(event)">
+        <span class="material-symbols-outlined text-[15px]">download</span>
+        <span>Download</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       COMPREHENSIVE INTERACTION LOGIC
+       ========================================================================= -->
+  <script>
+    // 1. Desktop Mica Boot Loader Dismissal
+    (function initBoot() {
+      const overlay = document.getElementById('boot-overlay');
+      const app = document.getElementById('app-wrapper');
+      const bar = document.getElementById('boot-bar');
+      const pct = document.getElementById('boot-percent');
+      const status = document.getElementById('boot-status');
+
+      const sequence = [
+        { threshold: 0, text: "Connecting to Mica Subsystem..." },
+        { threshold: 35, text: "Mounting zero-focus clipboard buffer..." },
+        { threshold: 70, text: "Registering global hotkey [Alt + Space]..." },
+        { threshold: 92, text: "HUD Daemon Initialized." }
+      ];
+
+      let progress = 0;
+      let dismissed = false;
+      let lastIdx = 0;
+
+      function updateStatus(val) {
+        let current = 0;
+        for (let i = 0; i < sequence.length; i++) {
+          if (val >= sequence[i].threshold) current = i;
+        }
+        if (current !== lastIdx) {
+          lastIdx = current;
+          status.style.opacity = '0';
+          setTimeout(() => {
+            status.innerText = sequence[current].text;
+            status.style.opacity = '1';
+          }, 120);
+        }
+      }
+
+      const timer = setInterval(() => {
+        if (dismissed) return;
+        progress += Math.floor(Math.random() * 8) + 6;
+        if (progress >= 100) progress = 100;
+
+        bar.style.width = progress + '%';
+        pct.innerText = progress + '%';
+        updateStatus(progress);
+
+        if (progress >= 100) {
+          clearInterval(timer);
+          setTimeout(dismiss, 180);
+        }
+      }, 28);
+
+      function dismiss() {
+        if (dismissed) return;
+        dismissed = true;
+        clearInterval(timer);
+
+        overlay.style.transition = 'opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), filter 0.5s ease-out';
+        overlay.style.opacity = '0';
+        overlay.style.transform = 'scale(1.03)';
+        overlay.style.filter = 'blur(12px)';
+        overlay.style.pointerEvents = 'none';
+
+        if (app) {
+          app.classList.remove('app-entering');
+          app.classList.add('app-settled');
+        }
+
+        setTimeout(() => {
+          overlay.style.display = 'none';
+        }, 550);
+      }
+
+      overlay.addEventListener('click', dismiss);
+      window.addEventListener('keydown', (e) => {
+        if (!dismissed && (e.code === 'Space' || e.key === 'Escape' || e.key === 'Enter')) {
+          e.preventDefault();
+          dismiss();
+        }
+      });
+    })();
+
+    // 2. Global Toast Helper
+    let toastTimer;
+    function showToast(msg, icon = 'check') {
+      const toast = document.getElementById('hud-toast');
+      const toastIcon = document.getElementById('toast-icon');
+      const toastText = document.getElementById('toast-text');
+
+      toastIcon.innerText = icon;
+      toastText.innerText = msg;
+      toast.classList.remove('opacity-0', '-translate-y-3');
+      toast.classList.add('opacity-100', 'translate-y-0');
+
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.add('opacity-0', '-translate-y-3');
+        toast.classList.remove('opacity-100', 'translate-y-0');
+      }, 2400);
+    }
+
+    // 3. PowerShell Installer Copy & Generic Snippet Copy
+    function copySnippet(text, toastMsg = 'Copied to Clipboard!') {
+      navigator.clipboard.writeText(text);
+      showToast(toastMsg);
+    }
+
+    document.getElementById('copy-winget-btn').addEventListener('click', () => {
+      copySnippet('irm https://raw.githubusercontent.com/JustNathan25/HoverPad/main/install-hoverpad.ps1 | iex', 'Copied 1-line PowerShell Installer!');
+      const btn = document.getElementById('copy-winget-btn');
+      btn.classList.add('tap-pop', 'border-primary');
+      setTimeout(() => btn.classList.remove('tap-pop', 'border-primary'), 300);
+    });
+
+    // 4. Snippet Rows Interaction & Real-time Copy
+    const rows = document.querySelectorAll('.snippet-row');
+    const liveStatus = document.getElementById('hud-live-status');
+
+    rows.forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('#toggle-secret')) return;
+        executeCopyRow(row);
+      });
+    });
+
+    function executeCopyRow(row) {
+      const val = row.getAttribute('data-clipboard');
+      navigator.clipboard.writeText(val);
+
+      row.classList.add('bg-primary/20', 'tap-pop');
+      const icon = row.querySelector('.row-icon');
+      const origIcon = icon.innerText;
+      icon.innerText = 'check';
+      icon.classList.add('text-primary');
+
+      setTimeout(() => {
+        row.classList.remove('bg-primary/20', 'tap-pop');
+        icon.innerText = origIcon;
+        icon.classList.remove('text-primary');
+      }, 600);
+
+      liveStatus.innerText = `Copied slot ${row.dataset.index}: ${val.slice(0, 22)}...`;
+      showToast(`Copied to Clipboard!`);
+    }
+
+    function copySlot(slotNum) {
+      const target = document.querySelector(`.snippet-row[data-index="${slotNum}"]`);
+      if (target) {
+        if (document.getElementById('interactive-hud').classList.contains('hidden')) {
+          summonHud();
+        }
+        executeCopyRow(target);
+      }
+    }
+
+    // 5. Secret Token Mask Toggle
+    let revealed = false;
+    const secretRow = document.querySelector('.snippet-row[data-index="4"]');
+    document.getElementById('toggle-secret').addEventListener('click', (e) => {
+      e.stopPropagation();
+      revealed = !revealed;
+      const el = document.getElementById('secret-val');
+      const icon = e.currentTarget.querySelector('.material-symbols-outlined');
+      if (revealed) {
+        el.innerText = 'HP_TOKEN=HP_LIVE_9824_XQ77';
+        el.classList.add('text-primary', 'font-medium');
+        secretRow.setAttribute('data-clipboard', 'HP_LIVE_9824_XQ77');
+        icon.innerText = 'visibility_off';
+        showToast('Token Revealed');
+      } else {
+        el.innerText = 'HP_TOKEN=••••••••••••••••••••';
+        el.classList.remove('text-primary', 'font-medium');
+        secretRow.setAttribute('data-clipboard', 'HP_LIVE_9824_XQ77');
+        icon.innerText = 'visibility';
+        showToast('Token Hidden');
+      }
+    });
+
+    // 6. Surface Toggles (Mica / Acrylic)
+    const hud = document.getElementById('interactive-hud');
+    const btnMica = document.getElementById('btn-mica');
+    const btnAcrylic = document.getElementById('btn-acrylic');
+
+    function setSurface(type) {
+      if (type === 'mica') {
+        hud.classList.add('mica-surface');
+        hud.classList.remove('acrylic-surface');
+        btnMica.className = 'px-2.5 py-1 rounded-md bg-primary-container text-on-primary-container font-mono text-[11px] font-medium transition-all';
+        btnAcrylic.className = 'px-2.5 py-1 rounded-md text-on-surface-variant hover:text-on-surface font-mono text-[11px] transition-all';
+        showToast('Material: Mica (Alt+M)');
+      } else {
+        hud.classList.remove('mica-surface');
+        hud.classList.add('acrylic-surface');
+        btnAcrylic.className = 'px-2.5 py-1 rounded-md bg-primary-container text-on-primary-container font-mono text-[11px] font-medium transition-all';
+        btnMica.className = 'px-2.5 py-1 rounded-md text-on-surface-variant hover:text-on-surface font-mono text-[11px] transition-all';
+        showToast('Material: Acrylic Blur');
+      }
+    }
+
+    // 7. Pin State
+    let pinned = true;
+    function togglePinDirect() {
+      pinned = !pinned;
+      const btn = document.getElementById('pin-toggle');
+      const lbl = document.getElementById('pin-label');
+      const icon = document.getElementById('pin-icon');
+
+      if (pinned) {
+        btn.className = 'ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary font-mono text-[10px] font-medium hover:bg-primary/20 transition-colors';
+        lbl.innerText = 'PINNED';
+        icon.innerText = 'push_pin';
+        showToast('Always-on-top: Enabled');
+      } else {
+        btn.className = 'ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container text-outline font-mono text-[10px] font-medium hover:text-on-surface transition-colors';
+        lbl.innerText = 'FLOAT';
+        icon.innerText = 'push_pin';
+        showToast('Always-on-top: Disabled');
+      }
+    }
+    document.getElementById('pin-toggle').addEventListener('click', togglePinDirect);
+
+    // 8. Window Caption Actions (Minimize, Close, Restore, Summon)
+    const pill = document.getElementById('hud-minimized-pill');
+    const cue = document.getElementById('hud-summon-cue');
+
+    function minimizeHud() {
+      hud.classList.add('hidden');
+      cue.classList.add('hidden');
+      pill.classList.remove('hidden');
+      pill.classList.add('flex', 'tap-pop');
+      showToast('HUD Minimized to Tray');
+    }
+
+    function restoreHud() {
+      pill.classList.add('hidden');
+      pill.classList.remove('flex');
+      hud.classList.remove('hidden');
+      hud.classList.add('tap-pop');
+      setTimeout(() => hud.classList.remove('tap-pop'), 250);
+    }
+
+    function closeHud() {
+      hud.classList.add('hidden');
+      pill.classList.add('hidden');
+      cue.classList.remove('hidden');
+      cue.classList.add('tap-pop');
+      showToast('HUD Backgrounded (Alt + Space)');
+    }
+
+    function summonHud() {
+      cue.classList.add('hidden');
+      pill.classList.add('hidden');
+      hud.classList.remove('hidden');
+      hud.classList.add('tap-pop');
+      setTimeout(() => hud.classList.remove('tap-pop'), 250);
+      showToast('HoverPad Summoned', 'layers');
+    }
+
+    // 9. Real-time Search & Filter Input
+    const filterInput = document.getElementById('hud-filter');
+    filterInput.addEventListener('input', () => {
+      applyFilters();
+    });
+
+    // 10. Tag Categories
+    let activeTag = 'all';
+    const tagBtns = document.querySelectorAll('.tag-btn');
+    tagBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tagBtns.forEach(b => {
+          b.className = 'tag-btn px-2 py-0.5 rounded-md bg-surface-container text-outline hover:text-on-surface hover:bg-surface-container-high transition-all';
+        });
+        btn.className = 'tag-btn px-2 py-0.5 rounded-md bg-white/15 text-white font-medium hover:bg-white/20 transition-all';
+        activeTag = btn.dataset.tag;
+        applyFilters();
+      });
+    });
+
+    function applyFilters() {
+      const q = filterInput.value.toLowerCase().trim();
+      rows.forEach(row => {
+        const matchText = row.innerText.toLowerCase().includes(q);
+        const matchTag = activeTag === 'all' || row.dataset.tag === activeTag;
+        if (matchText && matchTag) {
+          row.style.display = 'flex';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    }
+
+    // 11. Download Trigger (Allows real file download of Install-HoverPad-Windows.bat)
+    function triggerDownload(e) {
+      showToast('Downloading Install-HoverPad-Windows.bat — run it to install!', 'download');
+    }
+
+    // 12. Global Keyboard Listener (1-4, Escape, Slash, Alt+Space)
+    window.addEventListener('keydown', (e) => {
+      const boot = document.getElementById('boot-overlay');
+      if (boot && boot.style.display !== 'none') return;
+
+      if (e.altKey && e.code === 'Space') {
+        e.preventDefault();
+        summonHud();
+        return;
+      }
+
+      if (document.activeElement.tagName === 'INPUT') {
+        if (e.key === 'Escape') {
+          document.activeElement.blur();
+        }
+        return;
+      }
+
+      if (['1', '2', '3', '4'].includes(e.key)) {
+        copySlot(parseInt(e.key, 10));
+      } else if (e.key === '/') {
+        e.preventDefault();
+        filterInput.focus();
+      } else if (e.key === 'Escape') {
+        if (!hud.classList.contains('hidden')) {
+          closeHud();
+        }
+      }
+    });
+
+    // 13. Section A: Interactive Layer Inspector Blueprint
+    const layerData = {
+      topmost: {
+        tag: "SYSTEM SPECIFICATION",
+        id: "HOOK_ID: 0x88F0",
+        title: "WS_EX_NOACTIVATE Topmost Surface",
+        desc: "HoverPad requests the desktop window manager to map the floating surface with the WS_EX_NOACTIVATE bitmask flag. The foreground process (your terminal, editor, or browser) never receives a WM_KILLFOCUS notification.",
+        code: `CreateWindowExW(
+  WS_EX_TOPMOST | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW,
+  L"HoverPadMicaHost", nullptr, WS_POPUP,
+  x, y, w, h, nullptr, nullptr, hInstance, nullptr
+);`,
+        stat1: "< 0.8ms",
+        stat2: "0 ctx switches"
+      },
+      winevent: {
+        tag: "EVENT INTERCEPTION",
+        id: "HOOK_ID: WH_KEYBOARD_LL",
+        title: "Raw Input WinEvent Hook",
+        desc: "Installs a raw asynchronous keyboard hook via SetWindowsHookExW. Chords are processed before they enter application queues and dispatched silently to the daemon without interfering with input method editors (IMEs).",
+        code: `HHOOK hHook = SetWindowsHookExW(
+  WH_KEYBOARD_LL,
+  &LowLevelKeyboardProc,
+  GetModuleHandleW(nullptr),
+  0 // Global thread dispatch
+);`,
+        stat1: "0.2ms callback",
+        stat2: "Non-blocking"
+      },
+      ringbuffer: {
+        tag: "SECURE LOCAL STORAGE",
+        id: "ARENA_SZ: 6144 KB",
+        title: "Circular Memory Ring-Buffer",
+        desc: "Allocates a contiguous virtual memory page locked against paging via VirtualLock. Token entries are stored with DPAPI ephemeral salt keys and rotated in an in-memory 50-slot ring buffer, purged on daemon exit.",
+        code: `LPVOID arena = VirtualAlloc(
+  nullptr, RING_BUFFER_SIZE,
+  MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE
+);
+VirtualLock(arena, RING_BUFFER_SIZE);`,
+        stat1: "Zero Disk Write",
+        stat2: "DPAPI Encrypted"
+      }
+    };
+
+    const layerItems = document.querySelectorAll('.layer-item');
+    layerItems.forEach(item => {
+      item.addEventListener('click', () => {
+        layerItems.forEach(l => {
+          l.className = 'layer-item cursor-pointer p-4 sm:p-5 rounded-2xl bg-surface-container-low/60 border border-white/10 transition-all hover:border-white/30 active:scale-[0.99] group';
+          const badge = l.querySelector('span:first-child');
+          badge.className = 'font-mono text-xs px-2 py-0.5 rounded bg-white/10 text-on-surface-variant font-bold';
+        });
+
+        item.className = 'layer-item cursor-pointer p-4 sm:p-5 rounded-2xl bg-surface-container-low/90 border border-primary/50 transition-all hover:border-primary active:scale-[0.99] group shadow-[0_8px_30px_rgba(0,0,0,0.4)]';
+        const activeBadge = item.querySelector('span:first-child');
+        activeBadge.className = 'font-mono text-xs px-2 py-0.5 rounded bg-primary/20 text-primary font-bold';
+
+        const key = item.dataset.layer;
+        const data = layerData[key];
+        if (data) {
+          const box = document.getElementById('layer-detail-box');
+          box.classList.add('tap-pop');
+          setTimeout(() => box.classList.remove('tap-pop'), 200);
+
+          document.getElementById('detail-tag').innerText = data.tag;
+          document.getElementById('detail-id').innerText = data.id;
+          document.getElementById('detail-title').innerText = data.title;
+          document.getElementById('detail-desc').innerText = data.desc;
+          document.getElementById('detail-code').querySelector('code').innerText = data.code;
+          document.getElementById('detail-stat1').innerText = data.stat1;
+          document.getElementById('detail-stat2').innerText = data.stat2;
+        }
+      });
+    });
+
+    // 14. Section B: Keyboard Lab Flow Buttons
+    const flowBtns = document.querySelectorAll('.flow-btn');
+    const keycapsContainer = document.getElementById('virtual-keycaps');
+    const feedText = document.getElementById('flow-telemetry-text');
+
+    flowBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        flowBtns.forEach(b => {
+          b.className = 'flow-btn w-full text-left p-4 rounded-2xl bg-surface-container-low/60 border border-white/5 text-on-surface-variant hover:text-white hover:border-white/20 transition-all active:scale-[0.98]';
+        });
+        btn.className = 'flow-btn w-full text-left p-4 rounded-2xl bg-surface-container-high/80 border border-primary/50 text-white transition-all active:scale-[0.98]';
+
+        const keys = btn.dataset.keys.split(',');
+        const res = btn.dataset.result;
+
+        feedText.innerText = res;
+
+        keycapsContainer.innerHTML = '';
+        keys.forEach((k, idx) => {
+          const cap = document.createElement('div');
+          cap.className = 'keycap px-4 sm:px-6 py-3 sm:py-4 rounded-xl font-mono text-sm sm:text-base font-semibold bg-primary text-on-primary border border-white/20 shadow-[0_4px_16px_rgba(62,144,255,0.4)] tap-pop';
+          cap.innerText = k;
+          keycapsContainer.appendChild(cap);
+
+          if (idx < keys.length - 1) {
+            const plus = document.createElement('span');
+            plus.className = 'text-outline font-mono text-xl';
+            plus.innerText = '+';
+            keycapsContainer.appendChild(plus);
+          }
+        });
+      });
+    });
+
+    // 15. SECTION: CLI PIPELINE SIMULATOR LOGIC
+    const cliPresets = {
+      "1": {
+        cmd: "git diff --stat | hp --slot 1",
+        stdout: [
+          '<div class="text-outline"># Capturing diff summary into slot buffer...</div>',
+          '<div class="text-on-surface"> src/daemon.cpp      |  48 +++++++++++++++++-</div>',
+          '<div class="text-on-surface"> include/mica.h      |  12 ++--</div>',
+          '<div class="text-on-surface"> 2 files changed, 52 insertions(+), 8 deletions(-)</div>',
+          '<div class="text-primary/90 mt-2">[hp:daemon] mapped 412 bytes to slot #1 via shared-memory FIFO in 0.2ms</div>',
+          '<div class="text-secondary font-medium mt-1">✓ RETURN 0 (OK) — Desktop HUD Slot 1 Synchronized</div>'
+        ],
+        targetSlot: 1,
+        slotTitle: "Git Diff Stat",
+        slotBody: "2 files changed, 52 insertions(+), 8 deletions(-)",
+        status: "PIPE DISPATCHED TO SLOT 1"
+      },
+      "2": {
+        cmd: "curl -s api.internal/keys | jq -r '.token' | hp --secret",
+        stdout: [
+          '<div class="text-outline"># Resolving api.internal/keys via zero-copy TLS...</div>',
+          '<div class="text-on-surface">HTTP/2 200 OK [Content-Type: application/json]</div>',
+          '<div class="text-on-surface">Filtered stream: key \'token\' matched (length: 44)</div>',
+          '<div class="text-primary/90 mt-2">[hp:daemon] encrypted with ephemeral DPAPI salt into slot #4</div>',
+          '<div class="text-secondary font-medium mt-1">✓ RETURN 0 (OK) — Secret Slot 4 Masked &amp; Stored</div>'
+        ],
+        targetSlot: 4,
+        slotTitle: "Vault Staging Key",
+        slotBody: "HP_TOKEN=••••••••••••••••••••",
+        status: "ENCRYPTED TO SECRET SLOT 4"
+      },
+      "3": {
+        cmd: "docker logs -f app 2>&1 | hp --tail 10",
+        stdout: [
+          '<div class="text-outline"># Attaching stdout/stderr multiplexer to container: app...</div>',
+          '<div class="text-on-surface">[2025-05-18T10:24:01Z] INF cluster_arbiter initialized leader_id=1</div>',
+          '<div class="text-on-surface">[2025-05-18T10:24:02Z] INF worker_node[3] heartbeat ok (0.4ms)</div>',
+          '<div class="text-primary/90 mt-2">[hp:daemon] ring-buffer circular tail (last 10 frames) attached to slot #3</div>',
+          '<div class="text-secondary font-medium mt-1">✓ RETURN 0 (OK) — Active Buffer Updated</div>'
+        ],
+        targetSlot: 3,
+        slotTitle: "Container Stream",
+        slotBody: "heartbeat ok (0.4ms) • leader_id=1",
+        status: "STREAMED TO SLOT 3"
+      },
+      "4": {
+        cmd: "hp --get 2 | xargs deploy",
+        stdout: [
+          '<div class="text-outline"># Reading Slot 2 buffer from daemon memory arena...</div>',
+          '<div class="text-on-surface">&gt; https://api.hoverpad.dev/v2/health</div>',
+          '<div class="text-on-surface">Deploy target acknowledged: staging cluster v2.7</div>',
+          '<div class="text-primary/90 mt-2">[hp:daemon] stdout pipe passed 35 bytes to child argv</div>',
+          '<div class="text-secondary font-medium mt-1">✓ RETURN 0 (OK) — Execution complete</div>'
+        ],
+        targetSlot: 2,
+        slotTitle: "Staging Healthcheck",
+        slotBody: "https://api.hoverpad.dev/v2/health",
+        status: "STDOUT READ COMPLETE"
+      }
+    };
+
+    let activePresetKey = "1";
+
+    function setCliPreset(presetKey) {
+      activePresetKey = presetKey;
+      const p = cliPresets[presetKey];
+      if (!p) return;
+
+      document.querySelectorAll('.cli-preset-btn').forEach(btn => {
+        if (btn.dataset.preset === presetKey) {
+          btn.className = 'cli-preset-btn text-left p-3.5 rounded-2xl bg-surface-container-high border border-primary/50 transition-all active:scale-[0.98] group';
+          btn.querySelector('span:first-child').className = 'font-mono text-[10px] uppercase font-bold text-primary';
+          btn.querySelector('code').className = 'block font-mono text-xs text-white truncate font-medium group-hover:text-primary transition-colors';
+        } else {
+          btn.className = 'cli-preset-btn text-left p-3.5 rounded-2xl bg-surface-container-low/60 border border-white/5 hover:border-white/20 transition-all active:scale-[0.98] group';
+          btn.querySelector('span:first-child').className = 'font-mono text-[10px] uppercase font-bold text-outline';
+          btn.querySelector('code').className = 'block font-mono text-xs text-on-surface-variant truncate font-medium group-hover:text-white transition-colors';
+        }
+      });
+
+      document.getElementById('cli-active-cmd').innerText = p.cmd;
+      runActivePipeline();
+    }
+
+    function runActivePipeline() {
+      const p = cliPresets[activePresetKey];
+      if (!p) return;
+
+      const feed = document.getElementById('cli-stdout-feed');
+      const indicator = document.getElementById('cli-status-indicator');
+      const syncHud = document.getElementById('cli-sync-hud');
+      const updatedSlotLabel = document.getElementById('cli-hud-updated-slot');
+      const runBtn = document.getElementById('cli-run-btn');
+
+      runBtn.classList.add('tap-pop');
+      setTimeout(() => runBtn.classList.remove('tap-pop'), 200);
+
+      feed.innerHTML = '<div class="text-outline"># Streaming bytes into hoverpad daemon IPC socket...</div>';
+      indicator.innerText = "PIPING FIFO BYTES...";
+
+      setTimeout(() => {
+        feed.innerHTML = p.stdout.join('');
+        indicator.innerText = p.status;
+        updatedSlotLabel.innerText = `Slot ${p.targetSlot} Updated`;
+
+        document.querySelectorAll('.cli-hud-slot').forEach(s => {
+          s.className = 'cli-hud-slot flex items-center justify-between p-2 rounded-xl bg-surface-container/40 border border-transparent transition-all';
+          s.querySelector('span:first-child').className = 'font-mono text-xs text-outline font-bold bg-white/5 px-1.5 py-0.5 rounded shrink-0';
+        });
+
+        const targetEl = document.getElementById(`cli-slot-${p.targetSlot}`);
+        if (targetEl) {
+          targetEl.className = 'cli-hud-slot flex items-center justify-between p-2 rounded-xl bg-surface-container/90 border border-primary/50 shadow-[0_4px_16px_rgba(62,144,255,0.25)] transition-all tap-pop';
+          targetEl.querySelector('span:first-child').className = 'font-mono text-xs text-primary font-bold bg-primary/20 px-1.5 py-0.5 rounded shrink-0';
+          document.getElementById(`cli-slot-${p.targetSlot}-title`).innerText = p.slotTitle;
+          document.getElementById(`cli-slot-${p.targetSlot}-body`).innerText = p.slotBody;
+        }
+
+        syncHud.classList.add('border-primary/40');
+        setTimeout(() => syncHud.classList.remove('border-primary/40'), 500);
+
+        showToast(`Piped to HoverPad Slot #${p.targetSlot}`, 'sync_saved_locally');
+      }, 180);
+    }
+
+    function copyActiveCliCommand() {
+      const p = cliPresets[activePresetKey];
+      if (p) {
+        copySnippet(p.cmd, `Copied: ${p.cmd}`);
+        const btn = document.getElementById('cli-copy-btn');
+        btn.classList.add('tap-pop', 'text-white');
+        setTimeout(() => btn.classList.remove('tap-pop', 'text-white'), 250);
+      }
+    }
+
+    document.querySelectorAll('.cli-preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        setCliPreset(btn.dataset.preset);
+      });
+    });
+
+    // 16. Scroll Reveal & Sticky Mini-telemetry
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-revealed');
+        }
+      });
+    }, { threshold: 0.12 });
+
+    document.querySelectorAll('.reveal-item').forEach(el => observer.observe(el));
+
+    const stickyBar = document.getElementById('sticky-bar');
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 480) {
+        stickyBar.classList.remove('opacity-0', 'translate-y-6', 'pointer-events-none');
+        stickyBar.classList.add('opacity-100', 'translate-y-0');
+      } else {
+        stickyBar.classList.add('opacity-0', 'translate-y-6', 'pointer-events-none');
+        stickyBar.classList.remove('opacity-100', 'translate-y-0');
+      }
+    });
+  </script>
 </body>
 </html>
