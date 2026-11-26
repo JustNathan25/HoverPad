@@ -1,4 +1,4 @@
-﻿# =====================================================================
+# =====================================================================
 # HoverPad — Smart-App-Control-Safe Windows Desktop Installer
 # Installs HoverPad to %LOCALAPPDATA%\Programs\HoverPad and creates
 # Desktop & Start Menu shortcuts using Microsoft's signed runtime.
