@@ -121,7 +121,8 @@ const el = {
   noteUpdatedBy: document.getElementById('note-updated-by'),
   typingPresencePill: document.getElementById('typing-presence-pill'),
   noteLinesCount: document.getElementById('note-lines-count'),
-  noteColorPicker: document.getElementById('note-color-picker'),
+  btnNoteMoreMenu: document.getElementById('btn-note-more-menu'),
+  noteMoreDropdown: document.getElementById('note-more-dropdown'),
   btnE2eeNote: document.getElementById('btn-e2ee-note'),
   e2eeNoteIcon: document.getElementById('e2ee-note-icon'),
   e2eeNoteText: document.getElementById('e2ee-note-text'),
@@ -381,7 +382,7 @@ function updateFloatingNoteUIIndicators() {
   const activeIsFloating = state.activeNoteId && state.pinnedFloatingNoteIds.has(state.activeNoteId);
   if (el.btnFloatNoteWindow && el.floatNoteLabel) {
     el.btnFloatNoteWindow.classList.toggle('active', Boolean(activeIsFloating));
-    el.floatNoteLabel.textContent = activeIsFloating ? 'Unpin from Screen' : 'Pin Note on Screen';
+    el.floatNoteLabel.textContent = activeIsFloating ? 'Pinned' : 'Pin';
   }
 }
 
@@ -1457,10 +1458,10 @@ function updateE2eeToolbarButton(note) {
   el.btnE2eeNote.classList.toggle('active', Boolean(isEncrypted));
   if (isEncrypted) {
     el.e2eeNoteIcon.textContent = isUnlocked ? 'lock_open_right' : 'lock';
-    el.e2eeNoteText.textContent = isUnlocked ? 'Unlocked (E2EE)' : 'Locked (E2EE)';
+    el.e2eeNoteText.textContent = isUnlocked ? 'Remove E2EE Lock' : 'Unlock Note (E2EE)';
   } else {
     el.e2eeNoteIcon.textContent = 'lock_open';
-    el.e2eeNoteText.textContent = 'Encrypt';
+    el.e2eeNoteText.textContent = 'Encrypt Note (AES-256)';
   }
 }
 
@@ -1511,15 +1512,11 @@ function selectNote(noteId, openMobileEditor = false) {
   const isPinned = Boolean(note.is_pinned);
   el.btnPinNoteItem.classList.toggle('active', isPinned);
   if (el.pinNoteIcon) el.pinNoteIcon.classList.toggle('filled', isPinned);
-  if (el.pinNoteText) el.pinNoteText.textContent = isPinned ? 'Starred' : 'Star';
+  if (el.pinNoteText) el.pinNoteText.textContent = isPinned ? 'Unstar from Top' : 'Star to Top';
 
   el.noteUpdatedBy.textContent = note.updated_by_name
     ? `Last edited by ${note.updated_by_name} • ${formatTimeAgo(note.updated_at)}`
     : formatTimeAgo(note.updated_at);
-
-  document.querySelectorAll('.color-dot').forEach((dot) => {
-    dot.classList.toggle('selected', dot.dataset.color === (note.color || '#1e293b'));
-  });
 }
 
 // =====================================================================
@@ -2020,13 +2017,26 @@ function initWorkspaceHandlers() {
   el.noteTitleInput.addEventListener('input', () => scheduleNoteSave());
   el.noteContentInput.addEventListener('input', () => scheduleNoteSave());
 
+  // 3-Dot Note Options Dropdown Menu Toggle
+  el.btnNoteMoreMenu?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    el.noteMoreDropdown?.classList.toggle('hidden');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#note-more-wrap')) {
+      el.noteMoreDropdown?.classList.add('hidden');
+    }
+  });
+
   el.btnPinNoteItem.addEventListener('click', () => {
+    el.noteMoreDropdown?.classList.add('hidden');
     const note = state.notes.find((n) => n.id === state.activeNoteId);
     if (!note) return;
     const nextPin = !note.is_pinned;
     el.btnPinNoteItem.classList.toggle('active', nextPin);
     if (el.pinNoteIcon) el.pinNoteIcon.classList.toggle('filled', nextPin);
-    if (el.pinNoteText) el.pinNoteText.textContent = nextPin ? 'Starred' : 'Star';
+    if (el.pinNoteText) el.pinNoteText.textContent = nextPin ? 'Unstar from Top' : 'Star to Top';
     scheduleNoteSave({ is_pinned: nextPin });
   });
 
@@ -2035,14 +2045,6 @@ function initWorkspaceHandlers() {
     if (state.activeNoteId) {
       togglePinIndividualNoteToScreen(state.activeNoteId);
     }
-  });
-
-  el.noteColorPicker.addEventListener('click', (e) => {
-    const dot = e.target.closest('.color-dot');
-    if (!dot) return;
-    const color = dot.dataset.color;
-    document.querySelectorAll('.color-dot').forEach((d) => d.classList.toggle('selected', d === dot));
-    scheduleNoteSave({ color });
   });
 
   el.btnCopyEntireNote.addEventListener('click', () => {
@@ -2057,6 +2059,7 @@ function initWorkspaceHandlers() {
   });
 
   el.btnDeleteNote.addEventListener('click', async () => {
+    el.noteMoreDropdown?.classList.add('hidden');
     if (!state.activeNoteId) return;
     const idToDelete = state.activeNoteId;
     if (!state.isGuestMode) {
@@ -2082,6 +2085,7 @@ function initWorkspaceHandlers() {
 
   // End-to-End Encryption (E2EE) Lock / Unlock Handlers
   el.btnE2eeNote?.addEventListener('click', async () => {
+    el.noteMoreDropdown?.classList.add('hidden');
     const note = state.notes.find((n) => n.id === state.activeNoteId);
     if (!note) return;
 

@@ -354,41 +354,43 @@
             </div>
 
             <div class="editor-actions">
-              <!-- Color Accent Tags -->
-              <div class="color-picker-dots" id="note-color-picker">
-                <button type="button" class="color-dot" data-color="#1e293b" style="background:#64748b" title="Default Slate"></button>
-                <button type="button" class="color-dot" data-color="#1e3a5f" style="background:#0071e3" title="macOS Blue"></button>
-                <button type="button" class="color-dot" data-color="#144336" style="background:#10b981" title="Emerald"></button>
-                <button type="button" class="color-dot" data-color="#4d2c19" style="background:#f59e0b" title="Amber"></button>
-                <button type="button" class="color-dot" data-color="#4c1d4b" style="background:#ec4899" title="Rose"></button>
-              </div>
-
-              <!-- End-to-End Encryption (AES-GCM 256) Note Lock Button -->
-              <button class="btn-tool" id="btn-e2ee-note" title="Encrypt or Decrypt this note with a local AES-256 Passphrase (Zero-Knowledge E2EE)" type="button">
-                <span class="material-symbols-outlined tool-icon" id="e2ee-note-icon">lock_open</span>
-                <span id="e2ee-note-text">Encrypt</span>
-              </button>
-
-              <!-- Star Note to Top of Feed -->
-              <button class="btn-tool" id="btn-pin-note-item" title="Star this note to top of project list" type="button">
-                <span class="material-symbols-outlined tool-icon" id="pin-note-icon">star</span>
-                <span id="pin-note-text">Star</span>
-              </button>
-
-              <!-- Pin Individual Note on Screen (Pops out dedicated floating Always-on-Top Note window) -->
+              <!-- Primary Quick Action: Pin Note on Screen -->
               <button class="btn-tool" id="btn-float-note-window" title="Pop out & Pin ONLY this note on top of your screen (Ctrl+Shift+P)" type="button">
                 <span class="material-symbols-outlined tool-icon" id="float-note-icon" style="color:var(--amber);">push_pin</span>
-                <span id="float-note-label">Pin Note on Screen</span>
+                <span id="float-note-label">Pin</span>
               </button>
 
+              <!-- Primary Quick Action: Copy Note -->
               <button class="btn-tool btn-copy-highlight" id="btn-copy-entire-note" title="Copy full note text to clipboard" type="button">
                 <span class="material-symbols-outlined tool-icon">content_copy</span>
-                <span>Copy Note</span>
+                <span>Copy</span>
               </button>
 
-              <button class="btn-tool btn-danger-icon" id="btn-delete-note" title="Delete Note" type="button">
-                <span class="material-symbols-outlined tool-icon">delete</span>
-              </button>
+              <!-- 3-Dot Note Options Popover Menu (Star, Encrypt E2EE, Delete Note) -->
+              <div class="note-more-wrap" id="note-more-wrap">
+                <button class="btn-tool btn-icon-only" id="btn-note-more-menu" title="Note options (Star, Encrypt, Delete)" type="button" aria-haspopup="true">
+                  <span class="material-symbols-outlined tool-icon">more_horiz</span>
+                </button>
+
+                <div class="note-more-dropdown hidden" id="note-more-dropdown">
+                  <button class="dropdown-item" id="btn-pin-note-item" type="button">
+                    <span class="material-symbols-outlined dropdown-icon" id="pin-note-icon">star</span>
+                    <span id="pin-note-text">Star to Top</span>
+                  </button>
+
+                  <button class="dropdown-item" id="btn-e2ee-note" type="button">
+                    <span class="material-symbols-outlined dropdown-icon" id="e2ee-note-icon">lock_open</span>
+                    <span id="e2ee-note-text">Encrypt Note (AES-256)</span>
+                  </button>
+
+                  <div class="dropdown-divider"></div>
+
+                  <button class="dropdown-item danger" id="btn-delete-note" type="button">
+                    <span class="material-symbols-outlined dropdown-icon">delete</span>
+                    <span>Delete Note</span>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
